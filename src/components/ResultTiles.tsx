@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { getAllTools } from '../tools/registry'
 import { detectInputTypes } from '../tools/detect'
@@ -10,6 +10,7 @@ export function ResultTiles() {
   const input = useStore(s => s.input)
   const activeToolId = useStore(s => s.activeToolId)
   const [expanded, setExpanded] = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const allResults = useMemo(() => {
     if (!input.trim()) return []
@@ -26,6 +27,10 @@ export function ResultTiles() {
 
   useMemo(() => detectInputTypes(input), [input])
 
+  useEffect(() => {
+    setExpandedId(null)
+  }, [input])
+
   const filteredResults = activeToolId
     ? allResults.filter(r => r.toolId === activeToolId)
     : allResults
@@ -38,16 +43,25 @@ export function ResultTiles() {
 
   const hasMore = !activeToolId && !expanded && filteredResults.length > INITIAL_LIMIT
 
+  const handleToggle = (id: string) => {
+    setExpandedId(prev => prev === id ? null : id)
+  }
+
   return (
     <div className="w-full max-w-xl mx-auto mt-3">
       <div className="grid grid-cols-2 gap-1.5">
-        {visibleResults.map((r, i) => (
-          <ResultTile
-            key={`${r.toolId}-${r.result.label}`}
-            result={r.result}
-            accent={i < 4 && !activeToolId}
-          />
-        ))}
+        {visibleResults.map((r, i) => {
+          const tileId = `${r.toolId}-${r.result.label}`
+          return (
+            <ResultTile
+              key={tileId}
+              result={r.result}
+              accent={i < 4 && !activeToolId}
+              isExpanded={expandedId === tileId}
+              onToggle={() => handleToggle(tileId)}
+            />
+          )
+        })}
       </div>
       {hasMore && (
         <button

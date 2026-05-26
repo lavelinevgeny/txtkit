@@ -6,7 +6,6 @@ import { ResultTiles } from './components/ResultTiles'
 import { ExpandedSection } from './components/ExpandedSection'
 import { BottomCarousel } from './components/BottomCarousel'
 import { FullCatalog } from './components/FullCatalog'
-import { Toast } from './components/Toast'
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: string }> {
   state = { hasError: false, error: '' }
@@ -55,7 +54,6 @@ function App() {
 
         <BottomCarousel />
         <FullCatalog />
-        <Toast />
       </div>
     </ErrorBoundary>
   )
