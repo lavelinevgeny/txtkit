@@ -18,7 +18,8 @@ export const encodeTool: ToolDescriptor = {
 
     let jsonUnescape = ''
     try {
-      jsonUnescape = JSON.parse(input)
+      const parsed = JSON.parse(input)
+      jsonUnescape = typeof parsed === 'string' ? parsed : JSON.stringify(parsed, null, 2)
     } catch {
       jsonUnescape = 'Error: invalid JSON string'
     }
@@ -38,6 +39,8 @@ export const encodeTool: ToolDescriptor = {
       { label: 'HTML escape', value: input.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') },
       { label: 'HTML unescape', value: input.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') },
       { label: 'JSON escape', value: JSON.stringify(input) },
+      { label: 'Escape quotes (""', value: `"${input.replace(/"/g, '""')}"` },
+      { label: 'Unescape quotes (""', value: (() => { const t = input.trim(); return t.startsWith('"') && t.endsWith('"') ? t.slice(1, -1).replace(/""/g, '"') : 'Error: not wrapped in quotes' })() },
       { label: 'JSON unescape', value: jsonUnescape },
     ]
   },

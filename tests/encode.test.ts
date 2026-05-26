@@ -55,9 +55,9 @@ describe('encodeTool', () => {
     expect(r!.value).toBe('hello "world"')
   })
 
-  it('returns 8 encode/decode results', () => {
+  it('returns 10 encode/decode results', () => {
     const results = encodeTool.transform('hello')
-    expect(results.length).toBe(8)
+    expect(results.length).toBe(10)
   })
 
   it('handles empty input', () => {
