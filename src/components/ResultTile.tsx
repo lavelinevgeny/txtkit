@@ -5,8 +5,8 @@ import { copyToClipboard } from '../utils/clipboard'
 interface Props {
   result: TransformResult
   accent?: boolean
-  isExpanded: boolean
-  onToggle: () => void
+  isExpanded?: boolean
+  onToggle?: () => void
 }
 
 export function ResultTile({ result, accent, isExpanded, onToggle }: Props) {

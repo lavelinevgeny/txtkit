@@ -1,13 +1,14 @@
 import { useStore } from '../store/useStore'
 import { getAllTools } from '../tools/registry'
 
-const CAROUSEL_ORDER = ['case', 'transforms', 'stats', 'encode']
+const CAROUSEL_ORDER = ['case', 'transforms', 'stats', 'encode', 'json']
 
 const TOOL_META: Record<string, { icon: string; label: string }> = {
   case: { icon: 'Aa', label: 'Case' },
   transforms: { icon: '↻', label: 'Transform' },
   stats: { icon: '#', label: 'Stats' },
   encode: { icon: '{ }', label: 'Encode' },
+  json: { icon: '{ }', label: 'JSON' },
 }
 
 export function BottomCarousel() {
