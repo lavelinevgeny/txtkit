@@ -6,18 +6,21 @@ const CATEGORY_COLORS: Record<string, string> = {
   transform: 'rgba(232,160,48,0.1)',
   analysis: 'rgba(52,211,153,0.1)',
   encoding: 'rgba(96,165,250,0.1)',
+  json: 'rgba(192,132,252,0.1)',
 }
 
 const CATEGORY_TEXT: Record<string, string> = {
   transform: 'text-accent',
   analysis: 'text-success',
   encoding: 'text-info',
+  json: 'text-purple-400',
 }
 
 const CATEGORY_BORDER: Record<string, string> = {
   transform: 'border-accent/30',
   analysis: 'border-success/30',
   encoding: 'border-info/30',
+  json: 'border-purple-400/30',
 }
 
 export function ExpandedSection() {
