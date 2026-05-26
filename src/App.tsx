@@ -1,5 +1,4 @@
 import { Component, type ReactNode } from 'react'
-import { useStore } from './store/useStore'
 import { SmartInput } from './components/SmartInput'
 import { DetectionBadge } from './components/DetectionBadge'
 import { ResultTiles } from './components/ResultTiles'

@@ -2,15 +2,17 @@ import { useState, useEffect } from 'react'
 import { useStore } from '../store/useStore'
 import { getToolsByCategory, getToolById } from '../tools/registry'
 import { CatalogCard } from './CatalogCard'
+import type { Category } from '../types/tool'
 
 const CATEGORY_LABELS: Record<string, string> = {
   transform: 'Трансформации',
   analysis: 'Анализ',
   encoding: 'Кодирование',
+  json: 'JSON',
   dev: 'Dev Tools',
 }
 
-const CATEGORY_ORDER = ['transform', 'analysis', 'encoding']
+const CATEGORY_ORDER = ['transform', 'analysis', 'encoding', 'json']
 
 export function FullCatalog() {
   const catalogOpen = useStore(s => s.catalogOpen)
@@ -63,9 +65,9 @@ export function FullCatalog() {
 
       <div className="flex-1 overflow-y-auto px-6 py-5">
         {CATEGORY_ORDER.map(cat => {
-          const catTools = groups[cat] || []
+          const catTools = groups[cat as Category] || []
           if (catTools.length === 0) return null
-          const filtered = catTools.filter(t =>
+          const filtered = catTools.filter((t: { name: string; description: string }) =>
             !search || t.name.toLowerCase().includes(search.toLowerCase()) || t.description.toLowerCase().includes(search.toLowerCase())
           )
           if (filtered.length === 0) return null
@@ -75,7 +77,7 @@ export function FullCatalog() {
                 {CATEGORY_LABELS[cat]}
               </div>
               <div className="grid grid-cols-4 gap-2 catalog-grid">
-                {filtered.map(tool => (
+                {filtered.map((tool) => (
                   <CatalogCard key={tool.id} tool={tool} onClick={() => handleToolClick(tool.id)} />
                 ))}
               </div>
