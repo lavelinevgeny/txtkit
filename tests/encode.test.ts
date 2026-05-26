@@ -43,21 +43,9 @@ describe('encodeTool', () => {
     expect(r!.value).toBe('<div>hello</div>')
   })
 
-  it('JSON-escapes', () => {
-    const results = encodeTool.transform('hello "world"')
-    const r = results.find(r => r.label === 'JSON escape')
-    expect(r!.value).toBe('"hello \\"world\\""')
-  })
-
-  it('JSON-unescapes', () => {
-    const results = encodeTool.transform('"hello \\"world\\""')
-    const r = results.find(r => r.label === 'JSON unescape')
-    expect(r!.value).toBe('hello "world"')
-  })
-
-  it('returns 10 encode/decode results', () => {
+  it('returns 8 encode/decode results', () => {
     const results = encodeTool.transform('hello')
-    expect(results.length).toBe(10)
+    expect(results.length).toBe(8)
   })
 
   it('handles empty input', () => {
