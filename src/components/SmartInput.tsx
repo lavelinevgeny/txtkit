@@ -42,7 +42,7 @@ export function SmartInput() {
           onChange={handleChange}
           onPaste={handlePaste}
           placeholder="Вставьте или введите текст..."
-          className="w-full bg-surface border border-border rounded-xl px-4 py-3 font-mono text-sm text-text resize-none outline-none focus:border-accent/50 transition-colors placeholder:text-muted/40"
+          className="w-full bg-surface border border-border rounded-xl px-4 py-3 font-mono text-sm text-text resize-none outline-none overflow-hidden focus:border-accent/50 transition-colors placeholder:text-muted/40"
           rows={1}
         />
         {input && (
