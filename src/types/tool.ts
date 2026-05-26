@@ -1,4 +1,4 @@
-export type Category = 'transform' | 'analysis' | 'encoding' | 'dev'
+export type Category = 'transform' | 'analysis' | 'encoding' | 'json' | 'dev'
 
 export interface TransformResult {
   label: string
