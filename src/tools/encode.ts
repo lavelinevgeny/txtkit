@@ -23,8 +23,15 @@ export const encodeTool: ToolDescriptor = {
       jsonUnescape = 'Error: invalid JSON string'
     }
 
+    let base64Encode = ''
+    try {
+      base64Encode = btoa(unescape(encodeURIComponent(input)))
+    } catch {
+      base64Encode = 'Error: encoding failed'
+    }
+
     return [
-      { label: 'Base64 encode', value: btoa(input) },
+      { label: 'Base64 encode', value: base64Encode },
       { label: 'Base64 decode', value: base64Decode },
       { label: 'URL encode', value: encodeURIComponent(input) },
       { label: 'URL decode', value: (() => { try { return decodeURIComponent(input) } catch { return 'Error: invalid URL encoding' } })() },
