@@ -85,4 +85,17 @@ describe('detectInputTypes', () => {
     const results = detectInputTypes('')
     expect(results).toEqual([])
   })
+
+  it('detects YAML', () => {
+    const results = detectInputTypes('name: test\ncount: 5')
+    const yaml = results.find(r => r.type === 'yaml')
+    expect(yaml).toBeDefined()
+    expect(yaml!.confidence).toBeGreaterThanOrEqual(0.7)
+  })
+
+  it('does not detect JSON object as YAML', () => {
+    const results = detectInputTypes('{"name":"test"}')
+    const yaml = results.find(r => r.type === 'yaml')
+    expect(yaml).toBeUndefined()
+  })
 })
