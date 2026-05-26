@@ -114,4 +114,12 @@ describe('caseTool', () => {
     const upper = results.find(r => r.label === 'UPPER')
     expect(upper!.value).toBe('HELLO')
   })
+
+  it('strips non-alphabetic characters like parentheses', () => {
+    const results = caseTool.transform('Отказано по просрочке в ROMS (товар не сдан)')
+    const snake = results.find(r => r.label === 'snake_case')
+    expect(snake!.value).toBe('отказано_по_просрочке_в_roms_товар_не_сдан')
+    const camel = results.find(r => r.label === 'camelCase')
+    expect(camel!.value).toBe('отказаноПоПросрочкеВRomsТоварНеСдан')
+  })
 })
