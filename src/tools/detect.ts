@@ -64,6 +64,20 @@ const detectors: Array<{
     },
   },
   {
+    type: 'yaml',
+    label: 'YAML',
+    detect: (input) => {
+      const trimmed = input.trim()
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) return null
+      if (!trimmed.includes(':')) return null
+      const lines = trimmed.split('\n')
+      const keyValueLines = lines.filter(l => /^\s*[a-zA-Z_][a-zA-Z0-9_]*\s*:/.test(l))
+      if (keyValueLines.length === 0) return null
+      const confidence = Math.min(0.6 + keyValueLines.length * 0.1, 0.95)
+      return { type: 'yaml', label: 'YAML', confidence }
+    },
+  },
+  {
     type: 'camelCase',
     label: 'camelCase',
     detect: (input) => {
