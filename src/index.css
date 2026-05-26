@@ -1,0 +1,44 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #18181b;
+  --color-surface-dim: #111113;
+  --color-border: #27272a;
+  --color-border-dim: #1f1f22;
+  --color-muted: #71717a;
+  --color-muted-dim: #52525b;
+  --color-text: #e4e4e7;
+  --color-text-dim: #a1a1aa;
+  --color-accent: #e8a030;
+  --color-success: #34d399;
+  --color-info: #60a5fa;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-sans: 'Space Grotesk', sans-serif;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #09090b;
+  color: var(--color-text);
+}
+
+::selection {
+  background-color: rgba(232, 160, 48, 0.3);
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+@media (max-width: 640px) {
+  .catalog-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
