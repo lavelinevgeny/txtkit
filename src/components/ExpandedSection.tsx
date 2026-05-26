@@ -1,6 +1,7 @@
 import { useStore } from '../store/useStore'
 import { getToolById } from '../tools/registry'
 import { ResultTile } from './ResultTile'
+import { JsonTree } from './JsonTree'
 
 const CATEGORY_COLORS: Record<string, string> = {
   transform: 'rgba(232,160,48,0.1)',
@@ -27,6 +28,8 @@ export function ExpandedSection() {
   const input = useStore(s => s.input)
   const activeToolId = useStore(s => s.activeToolId)
   const setActiveToolId = useStore(s => s.setActiveToolId)
+  const activeJsonSubTool = useStore(s => s.activeJsonSubTool)
+  const setActiveJsonSubTool = useStore(s => s.setActiveJsonSubTool)
 
   if (!activeToolId || !input.trim()) return null
 
@@ -34,6 +37,13 @@ export function ExpandedSection() {
   if (!tool) return null
 
   const results = tool.transform(input)
+  const isJsonTool = tool.id === 'json'
+  const showTree = isJsonTool && activeJsonSubTool === 'tree'
+
+  let parsedJson: unknown = null
+  if (isJsonTool) {
+    try { parsedJson = JSON.parse(input.trim()) } catch { /* ignore */ }
+  }
 
   return (
     <div className={`w-full max-w-lg mx-auto mt-3 bg-surface-dim border ${CATEGORY_BORDER[tool.category] || 'border-border'} rounded-xl overflow-hidden`}>
@@ -60,6 +70,26 @@ export function ExpandedSection() {
             ))}
           </div>
         ) : null}
+        {isJsonTool && parsedJson !== null && (
+          <div className="mb-3">
+            <button
+              onClick={() => setActiveJsonSubTool(showTree ? null : 'tree')}
+              className={`w-full px-3 py-2 rounded-lg text-left transition-colors border ${
+                showTree
+                  ? 'bg-purple-400/10 border-purple-400/30'
+                  : 'bg-surface border-border hover:border-purple-400/30'
+              }`}
+            >
+              <div className="text-[9px] text-purple-400 font-medium">Tree</div>
+              <div className="font-mono text-xs text-text">Interactive tree view</div>
+            </button>
+          </div>
+        )}
+        {showTree && parsedJson !== null && (
+          <div className="mb-3">
+            <JsonTree data={parsedJson} />
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-1.5">
           {results.map(r => (
             <ResultTile key={r.label} result={r} />
