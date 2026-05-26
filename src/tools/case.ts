@@ -1,12 +1,13 @@
 import type { ToolDescriptor } from '../types/tool'
 
 function splitWords(input: string): string[] {
-  if (input.includes(' ')) return input.split(/\s+/).filter(Boolean)
-  if (input.includes('_')) return input.split('_').filter(Boolean)
-  if (input.includes('-')) return input.split('-').filter(Boolean)
-  if (input.includes('.')) return input.split('.').filter(Boolean)
-  if (input.includes('/')) return input.split('/').filter(Boolean)
-  const camelSplit = input.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+  const cleaned = input.replace(/[^\p{L}\p{N}\s_\-./]/gu, '')
+  if (cleaned.includes(' ')) return cleaned.split(/\s+/).filter(Boolean)
+  if (cleaned.includes('_')) return cleaned.split('_').filter(Boolean)
+  if (cleaned.includes('-')) return cleaned.split('-').filter(Boolean)
+  if (cleaned.includes('.')) return cleaned.split('.').filter(Boolean)
+  if (cleaned.includes('/')) return cleaned.split('/').filter(Boolean)
+  const camelSplit = cleaned.replace(/(\p{Ll})(\p{Lu})/gu, '$1 $2').replace(/(\p{Lu}+)(\p{Lu}\p{Ll})/gu, '$1 $2')
   return camelSplit.split(/\s+/).filter(Boolean)
 }
 
@@ -107,9 +108,18 @@ export const caseTool: ToolDescriptor = {
   transform: (input: string) => {
     if (!input.trim()) return []
     const words = toWords(input)
-    return formats.map(f => ({
+    const results = formats.map(f => ({
       label: f.label,
       value: f.convert(words, input),
     }))
+    if (words.length > 1 && !/\s/.test(input.trim())) {
+      const rank = (s: string) => {
+        if (s.includes(' ')) return 2
+        if (s !== input.trim()) return 1
+        return 0
+      }
+      results.sort((a, b) => rank(b.value) - rank(a.value))
+    }
+    return results
   },
 }
