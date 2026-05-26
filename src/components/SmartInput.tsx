@@ -46,7 +46,7 @@ export function SmartInput() {
           rows={1}
         />
         {input && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-1">
+          <div className="absolute right-3 top-1/2 -translate-y-[calc(50%+2px)] flex gap-1">
             <button
               onClick={() => setInput('')}
               className="w-6 h-6 bg-zinc-800 rounded flex items-center justify-center text-muted hover:text-text transition-colors text-xs"
