@@ -4,7 +4,7 @@ import { t } from '../i18n/translate'
 export const encodeTool: ToolDescriptor = {
   id: 'encode',
   name: 'Encoders',
-  icon: '{ }',
+  icon: '⇄',
   category: 'encoding',
   description: t('tools.encode.description'),
   features: [
