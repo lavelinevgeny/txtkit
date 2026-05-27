@@ -9,19 +9,13 @@ export const encodeTool: ToolDescriptor = {
   transform: (input: string) => {
     if (!input.trim()) return []
 
-    let base64Decode = ''
-    try {
-      base64Decode = atob(input.trim())
-    } catch {
-      base64Decode = 'Error: invalid Base64'
-    }
+    const base64Decode = (() => {
+      try { return atob(input.trim()) } catch { return 'Error: invalid Base64' }
+    })()
 
-    let base64Encode = ''
-    try {
-      base64Encode = btoa(unescape(encodeURIComponent(input)))
-    } catch {
-      base64Encode = 'Error: encoding failed'
-    }
+    const base64Encode = (() => {
+      try { return btoa(unescape(encodeURIComponent(input))) } catch { return 'Error: encoding failed' }
+    })()
 
     return [
       { label: 'Base64 encode', value: base64Encode },

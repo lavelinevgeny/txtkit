@@ -47,32 +47,34 @@ export const jsonTool: ToolDescriptor = {
       ? yaml.dump(parsed.data, { indent: 2, lineWidth: -1 })
       : 'Error: invalid JSON'
 
-    let yamlToJsonResult = ''
-    try {
-      const yamlParsed = yaml.load(trimmed)
-      yamlToJsonResult = JSON.stringify(yamlParsed, null, 2)
-    } catch {
-      yamlToJsonResult = 'Error: invalid YAML'
-    }
+    const yamlToJsonResult = (() => {
+      try {
+        return JSON.stringify(yaml.load(trimmed), null, 2)
+      } catch {
+        return 'Error: invalid YAML'
+      }
+    })()
 
     const structureResult = isJson && typeof parsed.data === 'object' && parsed.data !== null
       ? analyzeStructure(parsed.data).report
       : 'Error: invalid JSON'
 
-    let jsonEscapeResult = ''
-    try {
-      jsonEscapeResult = JSON.stringify(input)
-    } catch {
-      jsonEscapeResult = 'Error: escape failed'
-    }
+    const jsonEscapeResult = (() => {
+      try {
+        return JSON.stringify(input)
+      } catch {
+        return 'Error: escape failed'
+      }
+    })()
 
-    let jsonUnescapeResult = ''
-    try {
-      const unescaped = JSON.parse(input)
-      jsonUnescapeResult = typeof unescaped === 'string' ? unescaped : JSON.stringify(unescaped, null, 2)
-    } catch {
-      jsonUnescapeResult = 'Error: invalid JSON string'
-    }
+    const jsonUnescapeResult = (() => {
+      try {
+        const unescaped = JSON.parse(input)
+        return typeof unescaped === 'string' ? unescaped : JSON.stringify(unescaped, null, 2)
+      } catch {
+        return 'Error: invalid JSON string'
+      }
+    })()
 
     return [
       { label: 'Validate', value: validateResult },
