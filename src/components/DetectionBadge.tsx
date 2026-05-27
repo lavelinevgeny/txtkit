@@ -3,7 +3,6 @@ import { detectInputTypes } from '../tools/detect'
 
 export function DetectionBadge() {
   const input = useStore(s => s.input)
-  const locale = useStore(s => s.locale)
 
   if (!input.trim()) return null
 
