@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { getAllTools } from '../tools/registry'
 import { detectInputTypes } from '../tools/detect'
@@ -7,9 +7,8 @@ import { useTranslation } from '../i18n/context'
 
 const INITIAL_LIMIT = 8
 
-export function ResultTiles() {
+function ResultTilesInner({ input }: { input: string }) {
   const { t } = useTranslation()
-  const input = useStore(s => s.input)
   const activeToolId = useStore(s => s.activeToolId)
   const [expanded, setExpanded] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -28,10 +27,6 @@ export function ResultTiles() {
   }, [input])
 
   useMemo(() => detectInputTypes(input), [input])
-
-  useEffect(() => {
-    setExpandedId(null)
-  }, [input])
 
   const filteredResults = activeToolId
     ? allResults.filter(r => r.toolId === activeToolId)
@@ -83,4 +78,9 @@ export function ResultTiles() {
       )}
     </div>
   )
+}
+
+export function ResultTiles() {
+  const input = useStore(s => s.input)
+  return <ResultTilesInner key={input} input={input} />
 }

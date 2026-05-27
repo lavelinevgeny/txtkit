@@ -31,13 +31,12 @@ export function ExpandedSection() {
   const setActiveToolId = useStore(s => s.setActiveToolId)
   const activeJsonSubTool = useStore(s => s.activeJsonSubTool)
   const setActiveJsonSubTool = useStore(s => s.setActiveJsonSubTool)
+  const { t } = useTranslation()
 
   if (!activeToolId || !input.trim()) return null
 
   const tool = getToolById(activeToolId)
   if (!tool) return null
-
-  const { t } = useTranslation()
   const results = tool.transform(input)
   const isJsonTool = tool.id === 'json'
   const showTree = isJsonTool && activeJsonSubTool === 'tree'

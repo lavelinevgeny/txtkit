@@ -1,4 +1,4 @@
-import { t } from '../i18n/context'
+import { t } from '../i18n/translate'
 
 export function flattenJson(obj: unknown, prefix = ''): Record<string, unknown> {
   const result: Record<string, unknown> = {}

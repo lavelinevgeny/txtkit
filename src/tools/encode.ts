@@ -1,5 +1,5 @@
 import type { ToolDescriptor } from '../types/tool'
-import { t } from '../i18n/context'
+import { t } from '../i18n/translate'
 
 export const encodeTool: ToolDescriptor = {
   id: 'encode',
