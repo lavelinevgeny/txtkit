@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { TransformResult } from '../types/tool'
 import { copyToClipboard } from '../utils/clipboard'
+import { useTranslation } from '../i18n/context'
 
 interface Props {
   result: TransformResult
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function ResultTile({ result, accent, isExpanded, onToggle }: Props) {
+  const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async (e: React.MouseEvent) => {
@@ -54,7 +56,7 @@ export function ResultTile({ result, accent, isExpanded, onToggle }: Props) {
                 : 'bg-accent text-zinc-900 hover:bg-accent/90'
             }`}
           >
-            {copied ? '✓ Скопировано' : 'Скопировать'}
+            {copied ? t('resultTile.copied') : t('resultTile.copy')}
           </button>
         </div>
       )}

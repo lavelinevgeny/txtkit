@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '../store/useStore'
 import { getAllTools, getToolById } from '../tools/registry'
+import { useTranslation } from '../i18n/context'
 
 const TOOL_ORDER = ['case', 'transforms', 'stats', 'encode', 'json']
 
@@ -26,6 +27,7 @@ export function FullCatalog() {
   const setActiveToolId = useStore(s => s.setActiveToolId)
   const [search, setSearch] = useState('')
   const [expandedFeature, setExpandedFeature] = useState<string | null>(null)
+  const { t } = useTranslation()
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -67,13 +69,13 @@ export function FullCatalog() {
       <div className="px-6 py-4 flex justify-between items-center border-b border-border">
         <div className="font-mono font-bold text-base text-accent">
           txt<span className="text-muted">kit</span>
-          <span className="text-xs text-muted font-normal ml-2">all tools</span>
+          <span className="text-xs text-muted font-normal ml-2">{t('catalog.subtitle')}</span>
         </div>
         <div className="flex gap-2.5 items-center">
           <input
             value={search}
             onChange={e => { setSearch(e.target.value); setExpandedFeature(null) }}
-            placeholder="Search..."
+            placeholder={t('catalog.search')}
             className="bg-zinc-800 rounded-md px-3 py-1.5 text-xs text-text outline-none border border-transparent focus:border-border placeholder:text-muted/50 w-48"
           />
           <button
@@ -136,7 +138,7 @@ export function FullCatalog() {
                             onClick={() => handleToolClick(tool.id)}
                             className="mt-2 text-[9px] text-accent hover:underline"
                           >
-                            Open {tool.name} →
+                            {t('catalog.openTool', { name: tool.name })} →
                           </button>
                         </div>
                       ) : (

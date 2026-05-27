@@ -3,10 +3,12 @@ import { useStore } from '../store/useStore'
 import { getAllTools } from '../tools/registry'
 import { detectInputTypes } from '../tools/detect'
 import { ResultTile } from './ResultTile'
+import { useTranslation } from '../i18n/context'
 
 const INITIAL_LIMIT = 8
 
 export function ResultTiles() {
+  const { t } = useTranslation()
   const input = useStore(s => s.input)
   const activeToolId = useStore(s => s.activeToolId)
   const [expanded, setExpanded] = useState(false)
@@ -68,7 +70,7 @@ export function ResultTiles() {
           onClick={() => setExpanded(true)}
           className="w-full mt-2 py-2 text-xs text-muted hover:text-accent transition-colors"
         >
-          Показать все ({filteredResults.length})
+          {t('resultTiles.showAll', { count: filteredResults.length })}
         </button>
       )}
       {expanded && !activeToolId && (
@@ -76,7 +78,7 @@ export function ResultTiles() {
           onClick={() => setExpanded(false)}
           className="w-full mt-2 py-2 text-xs text-muted hover:text-accent transition-colors"
         >
-          Свернуть
+          {t('resultTiles.collapse')}
         </button>
       )}
     </div>

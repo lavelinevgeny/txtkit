@@ -1,9 +1,11 @@
 import { useRef, useEffect } from 'react'
 import { useStore } from '../store/useStore'
+import { useTranslation } from '../i18n/context'
 
 const MAX_INPUT_LENGTH = 5000
 
 export function SmartInput() {
+  const { t } = useTranslation()
   const input = useStore(s => s.input)
   const setInput = useStore(s => s.setInput)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -41,7 +43,7 @@ export function SmartInput() {
           value={input}
           onChange={handleChange}
           onPaste={handlePaste}
-          placeholder="Вставьте или введите текст..."
+          placeholder={t('smartInput.placeholder')}
           className="w-full bg-surface border border-border rounded-xl px-4 py-3 font-mono text-sm text-text resize-none outline-none overflow-hidden focus:border-accent/50 transition-colors placeholder:text-muted/40"
           rows={1}
         />
@@ -58,7 +60,7 @@ export function SmartInput() {
       </div>
       {showWarning && input && (
         <p className="text-xs text-amber-500 mt-1">
-          Текст обрезан до {MAX_INPUT_LENGTH} символов
+          {t('smartInput.lengthWarning', { max: MAX_INPUT_LENGTH })}
         </p>
       )}
     </div>

@@ -2,6 +2,7 @@ import { useStore } from '../store/useStore'
 import { getToolById } from '../tools/registry'
 import { ResultTile } from './ResultTile'
 import { JsonTree } from './JsonTree'
+import { useTranslation } from '../i18n/context'
 
 const CATEGORY_COLORS: Record<string, string> = {
   transform: 'rgba(232,160,48,0.1)',
@@ -36,6 +37,7 @@ export function ExpandedSection() {
   const tool = getToolById(activeToolId)
   if (!tool) return null
 
+  const { t } = useTranslation()
   const results = tool.transform(input)
   const isJsonTool = tool.id === 'json'
   const showTree = isJsonTool && activeJsonSubTool === 'tree'
@@ -80,8 +82,8 @@ export function ExpandedSection() {
                   : 'bg-surface border-border hover:border-purple-400/30'
               }`}
             >
-              <div className="text-[9px] text-purple-400 font-medium">Tree</div>
-              <div className="font-mono text-xs text-text">Interactive tree view</div>
+              <div className="text-[9px] text-purple-400 font-medium">{t('expanded.tree')}</div>
+              <div className="font-mono text-xs text-text">{t('expanded.treeDesc')}</div>
             </button>
           </div>
         )}

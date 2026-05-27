@@ -1,4 +1,5 @@
 import type { ToolDescriptor } from '../types/tool'
+import { useTranslation } from '../i18n/context'
 
 interface Props {
   tool: ToolDescriptor
@@ -23,6 +24,7 @@ const CATEGORY_TEXT: Record<string, string> = {
 }
 
 export function CatalogCard({ tool, disabled, onClick }: Props) {
+  const { t } = useTranslation()
   return (
     <button
       onClick={onClick}
@@ -43,7 +45,7 @@ export function CatalogCard({ tool, disabled, onClick }: Props) {
         {tool.name}
       </div>
       <div className="text-[9px] text-muted leading-relaxed">
-        {disabled ? 'Скоро' : tool.description}
+        {disabled ? t('catalogCard.soon') : tool.description}
       </div>
     </button>
   )
