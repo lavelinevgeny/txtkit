@@ -52,7 +52,7 @@ export function unflattenJson(obj: Record<string, unknown>): unknown {
             next[idx] = /^\d+$/.test(parts[i + 2]) ? [] : {}
           }
         }
-        current = next as Record<string, unknown>
+        current = next as unknown as Record<string, unknown>
       } else {
         current = next as Record<string, unknown>
       }
