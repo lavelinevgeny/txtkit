@@ -25,3 +25,10 @@ dist-ssr
 
 .superpowers/
 mockups/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
