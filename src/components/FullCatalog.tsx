@@ -3,7 +3,7 @@ import { useStore } from '../store/useStore'
 import { getAllTools, getToolById } from '../tools/registry'
 import { useTranslation } from '../i18n/context'
 
-const TOOL_ORDER = ['case', 'transforms', 'stats', 'encode', 'json']
+const TOOL_ORDER = ['case', 'transforms', 'stats', 'encode', 'json', '1c-blocks']
 
 const CATEGORY_COLORS: Record<string, string> = {
   transform: 'rgba(232,160,48,0.1)',

@@ -52,8 +52,8 @@ function AppInner() {
 
   return (
     <ErrorBoundary t={t}>
-      <div className="min-h-screen bg-[#09090b] flex flex-col">
-        <div className="flex-1 flex flex-col items-center pt-16 pb-4 px-4 overflow-y-auto">
+      <div className="h-dvh bg-[#09090b] flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col items-center pt-16 pb-4 px-4 overflow-y-auto min-h-0">
           <div className="mb-5 flex items-center gap-2">
             <h1 className="font-mono text-2xl font-bold">
               <span className="text-accent">txt</span>
