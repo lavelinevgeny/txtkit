@@ -86,6 +86,7 @@
   "encode.error.encodingFailed": "Error: encoding failed",
   "encode.error.invalidUrl": "Error: invalid URL encoding",
   "encode.error.notQuoted": "Error: not wrapped in quotes",
+  "tree.description": "Interactive tree view",
   "jsonTools.valid": "Valid JSON",
   "jsonTools.errorPrefix": "Error: ",
   "jsonTools.error.invalidJSON": "invalid JSON",

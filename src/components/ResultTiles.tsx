@@ -16,6 +16,8 @@ export function ResultTiles() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
+  const locale = useStore(s => s.locale)
+
   const allResults = useMemo(() => {
     if (!input.trim()) return []
     const tools = getAllTools()
@@ -27,9 +29,9 @@ export function ResultTiles() {
       }
     }
     return results
-  }, [input])
+  }, [input, locale])
 
-  useMemo(() => detectInputTypes(input), [input])
+  useMemo(() => detectInputTypes(input), [input, locale])
 
   const filteredResults = activeToolId
     ? allResults.filter(r => r.toolId === activeToolId)
@@ -98,7 +100,7 @@ export function ResultTiles() {
               className="bg-surface border border-border rounded-lg px-3 py-2 text-left hover:border-accent/30 transition-all"
             >
               <div className="text-[9px] text-muted">Tree</div>
-              <div className="font-mono text-xs truncate text-text">Interactive tree view</div>
+              <div className="font-mono text-xs truncate text-text">{t('tree.description')}</div>
             </button>
           )
         )}
