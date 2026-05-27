@@ -98,4 +98,18 @@ describe('detectInputTypes', () => {
     const yaml = results.find(r => r.type === 'yaml')
     expect(yaml).toBeUndefined()
   })
+
+  it('detects 1C Blocks format', () => {
+    const input = `{20260416130000,N,\n{0,0},2,1,2,38424377,1,W,"{""key"":""val""}",0,\n{"U"},"",1,1,0,182954,0,\n{0}\n}`
+    const results = detectInputTypes(input)
+    const blocks = results.find(r => r.type === '1c-blocks')
+    expect(blocks).toBeDefined()
+    expect(blocks!.confidence).toBeGreaterThanOrEqual(0.8)
+  })
+
+  it('does not detect JSON object as 1C Blocks', () => {
+    const results = detectInputTypes('{"name":"test","age":30}')
+    const blocks = results.find(r => r.type === '1c-blocks')
+    expect(blocks).toBeUndefined()
+  })
 })

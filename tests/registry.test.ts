@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { getAllTools, getToolsByCategory } from '../src/tools/registry'
 
 describe('tool registry', () => {
-  it('returns all 5 tools', () => {
+  it('returns all 6 tools', () => {
     const tools = getAllTools()
-    expect(tools.length).toBe(5)
+    expect(tools.length).toBe(6)
   })
 
   it('each tool has unique id', () => {
@@ -15,7 +15,7 @@ describe('tool registry', () => {
 
   it('groups tools by category', () => {
     const groups = getToolsByCategory()
-    expect(Object.keys(groups).sort()).toEqual(['analysis', 'encoding', 'json', 'transform'].sort())
+    expect(Object.keys(groups).sort()).toEqual(['analysis', 'dev', 'encoding', 'json', 'transform'].sort())
   })
 
   it('transform category has 2 tools', () => {
@@ -31,5 +31,10 @@ describe('tool registry', () => {
   it('encoding category has 1 tool', () => {
     const groups = getToolsByCategory()
     expect(groups['encoding'].length).toBe(1)
+  })
+
+  it('dev category has 1 tool', () => {
+    const groups = getToolsByCategory()
+    expect(groups['dev'].length).toBe(1)
   })
 })
