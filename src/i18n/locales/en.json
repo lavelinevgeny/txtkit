@@ -6,6 +6,8 @@
   "resultTile.copied": "✓ Copied",
   "resultTiles.showAll": "Show all ({count})",
   "resultTiles.collapse": "Collapse",
+  "resultTiles.filter": "Filter...",
+  "resultTiles.noResults": "No results",
   "catalogCard.soon": "Soon",
   "catalog.subtitle": "all tools",
   "catalog.search": "Search...",
