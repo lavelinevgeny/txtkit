@@ -1,3 +1,5 @@
+import { t } from '../i18n/context'
+
 export function flattenJson(obj: unknown, prefix = ''): Record<string, unknown> {
   const result: Record<string, unknown> = {}
 
@@ -124,12 +126,12 @@ export function analyzeStructure(data: unknown, depth = 0): StructureAnalysis {
   const isArray = Array.isArray(data)
 
   const lines = [
-    `Ключей: ${keyCount}`,
-    `Глубина: ${maxDepth}`,
-    `Типы: ${uniqueTypes.join(', ')}`,
-    `Массивов: ${arrayCount}`,
-    `Элементов: ${totalElements}`,
-    isArray ? 'Формат: массив' : 'Формат: объект',
+    t('json.keys', { n: keyCount }),
+    t('json.depth', { n: maxDepth }),
+    t('json.types', { types: uniqueTypes.join(', ') }),
+    t('json.arrays', { n: arrayCount }),
+    t('json.elements', { n: totalElements }),
+    isArray ? t('json.formatArray') : t('json.formatObject'),
   ]
   const report = lines.join('\n')
 

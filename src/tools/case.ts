@@ -1,4 +1,5 @@
 import type { ToolDescriptor } from '../types/tool'
+import { t } from '../i18n/context'
 
 function splitWords(input: string): string[] {
   const cleaned = input.replace(/[^\p{L}\p{N}\s_\-./]/gu, '')
@@ -104,25 +105,25 @@ export const caseTool: ToolDescriptor = {
   name: 'Case Converter',
   icon: 'Aa',
   category: 'transform',
-  description: '17 форматов конверсии регистра',
+  description: t('tools.case.description'),
   features: [
-    { label: 'camelCase', description: 'First word lowercase, subsequent words capitalized, no separators', example: 'myVariableName' },
-    { label: 'PascalCase', description: 'Every word capitalized, no separators', example: 'MyVariableName' },
-    { label: 'snake_case', description: 'Words separated by underscores, all lowercase', example: 'my_variable_name' },
-    { label: 'kebab-case', description: 'Words separated by hyphens, all lowercase', example: 'my-variable-name' },
-    { label: 'SCREAMING_SNAKE', description: 'Words separated by underscores, all uppercase', example: 'MY_VARIABLE_NAME' },
-    { label: 'lower', description: 'All letters converted to lowercase', example: 'my variable name' },
-    { label: 'Title Case', description: 'First letter of every word capitalized', example: 'My Variable Name' },
-    { label: 'Sentence case', description: 'Only the first letter of the first word capitalized', example: 'My variable name' },
-    { label: 'dot.case', description: 'Words separated by dots', example: 'my.variable.name' },
-    { label: 'path/case', description: 'Words separated by forward slashes', example: 'my/variable/name' },
-    { label: 'Train-Case', description: 'Words separated by hyphens, each capitalized', example: 'My-Variable-Name' },
-    { label: 'UPPER', description: 'All letters converted to uppercase with spaces', example: 'MY VARIABLE NAME' },
-    { label: 'Alternating', description: 'Letters alternate between upper and lower case', example: 'mY vArIaBlE nAmE' },
-    { label: 'Inverse', description: 'Uppercase becomes lowercase and vice versa', example: 'MY→my, my→MY' },
-    { label: 'CONSTANT_CASE', description: 'Same as SCREAMING_SNAKE — uppercase with underscores', example: 'MY_VARIABLE_NAME' },
-    { label: 'lower_case', description: 'Same as snake_case — lowercase with underscores', example: 'my_variable_name' },
-    { label: 'UPPER_CASE', description: 'Same as UPPER — all uppercase with spaces', example: 'MY VARIABLE NAME' },
+    { label: 'camelCase', description: t('tools.case.features.camelCase.description'), example: 'myVariableName' },
+    { label: 'PascalCase', description: t('tools.case.features.PascalCase.description'), example: 'MyVariableName' },
+    { label: 'snake_case', description: t('tools.case.features.snake_case.description'), example: 'my_variable_name' },
+    { label: 'kebab-case', description: t('tools.case.features.kebab-case.description'), example: 'my-variable-name' },
+    { label: 'SCREAMING_SNAKE', description: t('tools.case.features.SCREAMING_SNAKE.description'), example: 'MY_VARIABLE_NAME' },
+    { label: 'lower', description: t('tools.case.features.lower.description'), example: 'my variable name' },
+    { label: 'Title Case', description: t('tools.case.features.Title Case.description'), example: 'My Variable Name' },
+    { label: 'Sentence case', description: t('tools.case.features.Sentence case.description'), example: 'My variable name' },
+    { label: 'dot.case', description: t('tools.case.features.dot.case.description'), example: 'my.variable.name' },
+    { label: 'path/case', description: t('tools.case.features.path/case.description'), example: 'my/variable/name' },
+    { label: 'Train-Case', description: t('tools.case.features.Train-Case.description'), example: 'My-Variable-Name' },
+    { label: 'UPPER', description: t('tools.case.features.UPPER.description'), example: 'MY VARIABLE NAME' },
+    { label: 'Alternating', description: t('tools.case.features.Alternating.description'), example: 'mY vArIaBlE nAmE' },
+    { label: 'Inverse', description: t('tools.case.features.Inverse.description'), example: 'MY→my, my→MY' },
+    { label: 'CONSTANT_CASE', description: t('tools.case.features.CONSTANT_CASE.description'), example: 'MY_VARIABLE_NAME' },
+    { label: 'lower_case', description: t('tools.case.features.lower_case.description'), example: 'my_variable_name' },
+    { label: 'UPPER_CASE', description: t('tools.case.features.UPPER_CASE.description'), example: 'MY VARIABLE NAME' },
   ],
   transform: (input: string) => {
     if (!input.trim()) return []

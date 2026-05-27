@@ -97,7 +97,7 @@ describe('jsonTool', () => {
     it('analyzes JSON structure', () => {
       const results = jsonTool.transform('{"a":1,"b":"hello"}')
       const r = results.find(r => r.label === 'Structure')
-      expect(r!.value).toContain('Ключей: 2')
+      expect(r!.value).toContain('Keys: 2')
     })
   })
 

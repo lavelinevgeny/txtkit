@@ -1,4 +1,6 @@
 import type { DetectionResult } from '../types/tool'
+import { t } from '../i18n/context'
+import { pluralRu } from '../i18n/plural'
 
 const detectors: Array<{
   type: string
@@ -127,7 +129,8 @@ const detectors: Array<{
     detect: (input) => {
       const words = input.split(/\s+/).filter(Boolean)
       if (words.length >= 2) {
-        const wordLabel = `${words.length} ${words.length === 1 ? 'слово' : words.length < 5 ? 'слова' : 'слов'}, разделённых пробелами`
+        const form = pluralRu(words.length, ['слово', 'слова', 'слов'])
+        const wordLabel = t('detect.words', { count: words.length, form })
         return { type: 'multi-word', label: wordLabel, confidence: 0.5 }
       }
       return null
@@ -135,10 +138,10 @@ const detectors: Array<{
   },
   {
     type: 'single-word',
-    label: 'Одиночное слово',
+    label: '',
     detect: (input) => {
       if (input.trim().length > 0 && !/\s/.test(input.trim())) {
-        return { type: 'single-word', label: 'Одиночное слово', confidence: 0.2 }
+        return { type: 'single-word', label: t('detect.singleWord'), confidence: 0.2 }
       }
       return null
     },

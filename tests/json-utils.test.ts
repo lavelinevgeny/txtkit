@@ -74,6 +74,6 @@ describe('analyzeStructure', () => {
   it('formats report string', () => {
     const result = analyzeStructure({ a: 1 })
     expect(result.report).toContain('1')
-    expect(result.report).toContain('Ключей')
+    expect(result.report).toContain('Keys')
   })
 })
