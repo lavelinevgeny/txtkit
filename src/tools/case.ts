@@ -105,6 +105,25 @@ export const caseTool: ToolDescriptor = {
   icon: 'Aa',
   category: 'transform',
   description: '17 форматов конверсии регистра',
+  features: [
+    { label: 'camelCase', description: 'First word lowercase, subsequent words capitalized, no separators', example: 'myVariableName' },
+    { label: 'PascalCase', description: 'Every word capitalized, no separators', example: 'MyVariableName' },
+    { label: 'snake_case', description: 'Words separated by underscores, all lowercase', example: 'my_variable_name' },
+    { label: 'kebab-case', description: 'Words separated by hyphens, all lowercase', example: 'my-variable-name' },
+    { label: 'SCREAMING_SNAKE', description: 'Words separated by underscores, all uppercase', example: 'MY_VARIABLE_NAME' },
+    { label: 'lower', description: 'All letters converted to lowercase', example: 'my variable name' },
+    { label: 'Title Case', description: 'First letter of every word capitalized', example: 'My Variable Name' },
+    { label: 'Sentence case', description: 'Only the first letter of the first word capitalized', example: 'My variable name' },
+    { label: 'dot.case', description: 'Words separated by dots', example: 'my.variable.name' },
+    { label: 'path/case', description: 'Words separated by forward slashes', example: 'my/variable/name' },
+    { label: 'Train-Case', description: 'Words separated by hyphens, each capitalized', example: 'My-Variable-Name' },
+    { label: 'UPPER', description: 'All letters converted to uppercase with spaces', example: 'MY VARIABLE NAME' },
+    { label: 'Alternating', description: 'Letters alternate between upper and lower case', example: 'mY vArIaBlE nAmE' },
+    { label: 'Inverse', description: 'Uppercase becomes lowercase and vice versa', example: 'MY→my, my→MY' },
+    { label: 'CONSTANT_CASE', description: 'Same as SCREAMING_SNAKE — uppercase with underscores', example: 'MY_VARIABLE_NAME' },
+    { label: 'lower_case', description: 'Same as snake_case — lowercase with underscores', example: 'my_variable_name' },
+    { label: 'UPPER_CASE', description: 'Same as UPPER — all uppercase with spaces', example: 'MY VARIABLE NAME' },
+  ],
   transform: (input: string) => {
     if (!input.trim()) return []
     const words = toWords(input)

@@ -6,6 +6,16 @@ export const encodeTool: ToolDescriptor = {
   icon: '{ }',
   category: 'encoding',
   description: 'Base64, URL encode/decode, HTML escape',
+  features: [
+    { label: 'Base64 encode', description: 'Encode text to Base64 format', example: 'hello → aGVsbG8=' },
+    { label: 'Base64 decode', description: 'Decode Base64 string back to plain text', example: 'aGVsbG8= → hello' },
+    { label: 'URL encode', description: 'Encode special characters for safe use in URLs', example: 'a b → a%20b' },
+    { label: 'URL decode', description: 'Decode percent-encoded URL characters', example: 'a%20b → a b' },
+    { label: 'HTML escape', description: 'Convert HTML special characters to entities', example: '<div> → &lt;div&gt;' },
+    { label: 'HTML unescape', description: 'Convert HTML entities back to characters', example: '&lt; → <' },
+    { label: 'Escape quotes', description: 'Wrap in double quotes and escape inner quotes', example: 'he"llo → "he""llo"' },
+    { label: 'Unescape quotes', description: 'Remove outer quotes and unescape doubled quotes', example: '"he""llo" → he"llo' },
+  ],
   transform: (input: string) => {
     if (!input.trim()) return []
 
