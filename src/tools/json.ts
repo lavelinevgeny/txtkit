@@ -1,6 +1,6 @@
 import yaml from 'js-yaml'
 import type { ToolDescriptor } from '../types/tool'
-import { t } from '../i18n/context'
+import { t } from '../i18n/translate'
 import { flattenJson, unflattenJson, analyzeStructure } from './json-utils'
 
 function tryParseJson(input: string): { ok: true; data: unknown } | { ok: false; error: string } {

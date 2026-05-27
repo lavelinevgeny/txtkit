@@ -1,5 +1,5 @@
 import type { ToolDescriptor } from '../types/tool'
-import { t } from '../i18n/context'
+import { t } from '../i18n/translate'
 
 const MORSE_MAP: Record<string, string> = {
   'A': '.-', 'B': '-...', 'C': '-.-.', 'D': '-..', 'E': '.', 'F': '..-.',

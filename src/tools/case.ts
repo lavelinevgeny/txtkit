@@ -1,5 +1,5 @@
 import type { ToolDescriptor } from '../types/tool'
-import { t } from '../i18n/context'
+import { t } from '../i18n/translate'
 
 function splitWords(input: string): string[] {
   const cleaned = input.replace(/[^\p{L}\p{N}\s_\-./]/gu, '')

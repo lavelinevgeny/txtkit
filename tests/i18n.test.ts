@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { pluralRu } from '../src/i18n/plural'
-import { t } from '../src/i18n/context'
+import { t } from '../src/i18n/translate'
 import en from '../src/i18n/locales/en.json'
 import ru from '../src/i18n/locales/ru.json'
 

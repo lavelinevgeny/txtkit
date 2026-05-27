@@ -1,5 +1,5 @@
 import type { DetectionResult } from '../types/tool'
-import { t } from '../i18n/context'
+import { t } from '../i18n/translate'
 import { pluralRu } from '../i18n/plural'
 
 const detectors: Array<{
