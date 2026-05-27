@@ -43,6 +43,20 @@ body {
   }
 }
 
+.scrollbar-transparent::-webkit-scrollbar {
+  width: 4px;
+}
+.scrollbar-transparent::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-transparent::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 2px;
+}
+.scrollbar-transparent:hover::-webkit-scrollbar-thumb {
+  background: rgba(113, 113, 122, 0.4);
+}
+
 .scrollbar-thin::-webkit-scrollbar {
   width: 4px;
 }
