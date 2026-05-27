@@ -37,18 +37,18 @@ export function SmartInput() {
 
   return (
     <div className="w-full max-w-xl mx-auto">
-      <div className="relative">
+      <div className="relative rounded-xl overflow-hidden">
         <textarea
           ref={textareaRef}
           value={input}
           onChange={handleChange}
           onPaste={handlePaste}
           placeholder={t('smartInput.placeholder')}
-          className="w-full bg-surface border border-border rounded-xl px-4 py-3 font-mono text-sm text-text resize-none outline-none overflow-hidden focus:border-accent/50 transition-colors placeholder:text-muted/40"
+          className="w-full bg-surface border border-border px-4 py-3 pr-10 font-mono text-sm text-text resize-none outline-none overflow-y-auto focus:border-accent/50 transition-colors placeholder:text-muted/40 scrollbar-transparent"
           rows={1}
         />
         {input && (
-          <div className="absolute right-3 top-1/2 -translate-y-[calc(50%+2px)] flex gap-1">
+          <div className="absolute right-3 top-3 flex gap-1">
             <button
               onClick={() => setInput('')}
               className="w-6 h-6 bg-zinc-800 rounded flex items-center justify-center text-muted hover:text-text transition-colors text-xs"
