@@ -5,7 +5,7 @@ import { transformsTool } from './transforms'
 import { encodeTool } from './encode'
 import { jsonTool } from './json'
 
-const tools: ToolDescriptor[] = [caseTool, transformsTool, statsTool, encodeTool, jsonTool]
+const tools: ToolDescriptor[] = [jsonTool, caseTool, transformsTool, statsTool, encodeTool]
 
 export function getAllTools(): ToolDescriptor[] {
   return tools
