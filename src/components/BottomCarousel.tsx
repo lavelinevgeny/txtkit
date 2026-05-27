@@ -7,7 +7,7 @@ const TOOL_META: Record<string, { icon: string; label: string }> = {
   case: { icon: 'Aa', label: 'Case' },
   transforms: { icon: '↻', label: 'Transform' },
   stats: { icon: '#', label: 'Stats' },
-  encode: { icon: '{ }', label: 'Encode' },
+  encode: { icon: '⇄', label: 'Encode' },
   json: { icon: '{ }', label: 'JSON' },
 }
 
