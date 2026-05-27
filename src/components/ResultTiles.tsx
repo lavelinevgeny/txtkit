@@ -1,14 +1,16 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { getAllTools } from '../tools/registry'
 import { detectInputTypes } from '../tools/detect'
 import { ResultTile } from './ResultTile'
+import { JsonTree } from './JsonTree'
 import { useTranslation } from '../i18n/context'
 
 const INITIAL_LIMIT = 8
 
-function ResultTilesInner({ input }: { input: string }) {
+export function ResultTiles() {
   const { t } = useTranslation()
+  const input = useStore(s => s.input)
   const activeToolId = useStore(s => s.activeToolId)
   const [expanded, setExpanded] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -28,6 +30,10 @@ function ResultTilesInner({ input }: { input: string }) {
 
   useMemo(() => detectInputTypes(input), [input])
 
+  useEffect(() => {
+    setExpandedId(null)
+  }, [input])
+
   const filteredResults = activeToolId
     ? allResults.filter(r => r.toolId === activeToolId)
     : allResults
@@ -44,9 +50,39 @@ function ResultTilesInner({ input }: { input: string }) {
     setExpandedId(prev => prev === id ? null : id)
   }
 
+  const isJsonTool = activeToolId === 'json'
+  const treeTileId = 'json-tree'
+  const isTreeExpanded = expandedId === treeTileId
+
+  let parsedJson: unknown = null
+  if (isJsonTool) {
+    try { parsedJson = JSON.parse(input.trim()) } catch { /* ignore */ }
+  }
+
   return (
     <div className="w-full max-w-xl mx-auto mt-3">
       <div className="grid grid-cols-2 gap-1.5">
+        {isJsonTool && parsedJson !== null && (
+          isTreeExpanded ? (
+            <div className="bg-surface border border-purple-400/30 rounded-lg px-3 py-2 col-span-2">
+              <button
+                onClick={() => handleToggle(treeTileId)}
+                className="text-[9px] text-purple-400 font-medium mb-1 hover:text-purple-300"
+              >
+                Tree
+              </button>
+              <JsonTree data={parsedJson} />
+            </div>
+          ) : (
+            <button
+              onClick={() => handleToggle(treeTileId)}
+              className="bg-surface border border-border rounded-lg px-3 py-2 text-left hover:border-purple-400/30 transition-all"
+            >
+              <div className="text-[9px] text-purple-400">Tree</div>
+              <div className="font-mono text-xs truncate text-text">Interactive tree view</div>
+            </button>
+          )
+        )}
         {visibleResults.map((r, i) => {
           const tileId = `${r.toolId}-${r.result.label}`
           return (
@@ -78,9 +114,4 @@ function ResultTilesInner({ input }: { input: string }) {
       )}
     </div>
   )
-}
-
-export function ResultTiles() {
-  const input = useStore(s => s.input)
-  return <ResultTilesInner key={input} input={input} />
 }

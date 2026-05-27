@@ -4,7 +4,6 @@ import { useStore } from './store/useStore'
 import { SmartInput } from './components/SmartInput'
 import { DetectionBadge } from './components/DetectionBadge'
 import { ResultTiles } from './components/ResultTiles'
-import { ExpandedSection } from './components/ExpandedSection'
 import { BottomCarousel } from './components/BottomCarousel'
 import { FullCatalog } from './components/FullCatalog'
 
@@ -66,7 +65,6 @@ function AppInner() {
           <SmartInput />
           <DetectionBadge />
           <ResultTiles />
-          <ExpandedSection />
         </div>
 
         <BottomCarousel />
