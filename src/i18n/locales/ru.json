@@ -92,5 +92,19 @@
   "jsonTools.error.invalidJSON": "невалидный JSON",
   "jsonTools.error.invalidYAML": "невалидный YAML",
   "jsonTools.error.escapeFailed": "экранирование не удалось",
-  "jsonTools.error.invalidJSONString": "невалидная JSON-строка"
+  "jsonTools.error.invalidJSONString": "невалидная JSON-строка",
+  "tools.1c-blocks.description": "Парсинг, валидация, форматирование блоков сериализации 1С",
+  "tools.1c-blocks.features.Validate.description": "Проверить баланс скобок, экранирование кавычек и структуру блоков",
+  "tools.1c-blocks.features.Pretty print.description": "Форматировать вложенные блоки с отступами",
+  "tools.1c-blocks.features.Block count.description": "Подсчитать блоки, глубину вложенности и типы значений",
+  "tools.1c-blocks.features.To JSON.description": "Конвертировать формат блоков 1С в JSON-структуру",
+  "tools.1c-blocks.features.Extract JSON.description": "Извлечь встроенные JSON-строки из значений блоков",
+  "tools.1c-blocks.features.Minify.description": "Удалить все пробелы для компактного представления",
+  "tools.1c-blocks.features.Split blocks.description": "Разбить текст на отдельные блоки верхнего уровня",
+  "tools.1c-blocks.features.Tree view.description": "Интерактивное дерево структуры блоков",
+  "1cBlocks.valid": "Валидный формат",
+  "1cBlocks.errorPrefix": "Ошибка: ",
+  "1cBlocks.error.invalidFormat": "невалидный формат блоков",
+  "1cBlocks.noEmbeddedJSON": "Встроенный JSON не найден",
+  "1cBlocks.singleBlock": "Одиночный блок (нечего разбивать)"
 }

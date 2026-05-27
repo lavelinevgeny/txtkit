@@ -2,6 +2,7 @@ import type { DetectionResult } from '../types/tool'
 import { t } from '../i18n/translate'
 import { pluralRu } from '../i18n/plural'
 import { useStore } from '../store/useStore'
+import { blocksTool } from './1c-blocks'
 
 const detectors: Array<{
   type: string
@@ -47,6 +48,13 @@ const detectors: Array<{
       const count = (input.match(/&(?:#\d+|#x[0-9a-fA-F]+|[a-zA-Z]+);/g) || []).length
       const confidence = Math.min(0.6 + count * 0.1, 0.95)
       return { type: 'html-entities', label: 'HTML entities', confidence }
+    },
+  },
+  {
+    type: '1c-blocks',
+    label: '1C Blocks',
+    detect: (input) => {
+      return blocksTool.detect!(input)
     },
   },
   {
