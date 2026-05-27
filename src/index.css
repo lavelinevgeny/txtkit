@@ -51,10 +51,15 @@ body {
 }
 .scrollbar-transparent::-webkit-scrollbar-thumb {
   background: transparent;
-  border-radius: 2px;
+  border-top: 12px solid transparent;
+  border-bottom: 12px solid transparent;
+  background-clip: padding-box;
 }
 .scrollbar-transparent:hover::-webkit-scrollbar-thumb {
   background: rgba(113, 113, 122, 0.4);
+  border-top: 12px solid transparent;
+  border-bottom: 12px solid transparent;
+  background-clip: padding-box;
 }
 
 .scrollbar-thin::-webkit-scrollbar {
