@@ -39,7 +39,18 @@ export function ResultTiles() {
     ? filteredResults.filter(r => r.result.label.toLowerCase().includes(search.toLowerCase()))
     : filteredResults
 
-  if (!input.trim() || (searchedResults.length === 0 && !search)) return null
+  let parsedJson: unknown = null
+  if (!activeToolId || activeToolId === 'json') {
+    try { parsedJson = JSON.parse(input.trim()) } catch { /* ignore */ }
+  }
+
+  const treeLabel = 'Tree'
+  const treeMatchesSearch = search
+    ? treeLabel.toLowerCase().includes(search.toLowerCase())
+    : true
+  const showTreeTile = parsedJson !== null && treeMatchesSearch
+
+  if (!input.trim() || (searchedResults.length === 0 && !showTreeTile && !search)) return null
 
   const visibleResults = expanded || activeToolId || search
     ? searchedResults
@@ -51,18 +62,12 @@ export function ResultTiles() {
     setExpandedId(prev => prev === id ? null : id)
   }
 
-  const isJsonTool = activeToolId === 'json'
   const treeTileId = 'json-tree'
   const isTreeExpanded = expandedId === treeTileId
 
-  let parsedJson: unknown = null
-  if (isJsonTool) {
-    try { parsedJson = JSON.parse(input.trim()) } catch { /* ignore */ }
-  }
-
   return (
     <div className="w-full max-w-xl mx-auto mt-3">
-      {(searchedResults.length > 0 || search) && (
+      {(searchedResults.length > 0 || search || showTreeTile) && (
         <div className="mb-1.5">
           <input
             value={search}
@@ -70,18 +75,18 @@ export function ResultTiles() {
             placeholder={t('resultTiles.filter')}
             className="w-full bg-zinc-800 rounded-lg px-3 py-1.5 text-xs text-text outline-none border border-transparent focus:border-border placeholder:text-muted/50"
           />
-          {searchedResults.length === 0 && (
+          {searchedResults.length === 0 && !showTreeTile && (
             <p className="text-xs text-muted text-center py-3">{t('resultTiles.noResults')}</p>
           )}
         </div>
       )}
       <div className="grid grid-cols-2 gap-1.5">
-        {isJsonTool && parsedJson !== null && (
+        {showTreeTile && (
           isTreeExpanded ? (
-            <div className="bg-surface border border-purple-400/30 rounded-lg px-3 py-2 col-span-2">
+            <div className="bg-surface border border-accent rounded-lg px-3 py-2 col-span-2">
               <button
                 onClick={() => handleToggle(treeTileId)}
-                className="text-[9px] text-purple-400 font-medium mb-1 hover:text-purple-300"
+                className="text-[9px] text-accent font-medium mb-1 hover:text-accent/80"
               >
                 Tree
               </button>
@@ -90,9 +95,9 @@ export function ResultTiles() {
           ) : (
             <button
               onClick={() => handleToggle(treeTileId)}
-              className="bg-surface border border-border rounded-lg px-3 py-2 text-left hover:border-purple-400/30 transition-all"
+              className="bg-surface border border-border rounded-lg px-3 py-2 text-left hover:border-accent/30 transition-all"
             >
-              <div className="text-[9px] text-purple-400">Tree</div>
+              <div className="text-[9px] text-muted">Tree</div>
               <div className="font-mono text-xs truncate text-text">Interactive tree view</div>
             </button>
           )
