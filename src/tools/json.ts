@@ -1,5 +1,6 @@
 import yaml from 'js-yaml'
 import type { ToolDescriptor } from '../types/tool'
+import { t } from '../i18n/context'
 import { flattenJson, unflattenJson, analyzeStructure } from './json-utils'
 
 function tryParseJson(input: string): { ok: true; data: unknown } | { ok: false; error: string } {
@@ -15,18 +16,18 @@ export const jsonTool: ToolDescriptor = {
   name: 'JSON Tools',
   icon: '{ }',
   category: 'json',
-  description: 'Format, validate, flatten, YAML convert, tree view',
+  description: t('tools.json.description'),
   features: [
-    { label: 'Validate', description: 'Check if the input is valid JSON and report errors', example: '{"a":1} → Valid JSON' },
-    { label: 'Pretty print', description: 'Format JSON with 2-space indentation', example: '{"a":1} → {\\n  "a": 1\\n}' },
-    { label: 'Minify', description: 'Remove all whitespace to produce compact JSON', example: '{ "a" : 1 } → {"a":1}' },
-    { label: 'Flatten', description: 'Convert nested objects to dot-notation keys', example: '{"a":{"b":1}} → {"a.b":1}' },
-    { label: 'Unflatten', description: 'Expand dot-notation keys back to nested objects', example: '{"a.b":1} → {"a":{"b":1}}' },
-    { label: 'JSON → YAML', description: 'Convert JSON to YAML format', example: '{"a":1} → a: 1' },
-    { label: 'YAML → JSON', description: 'Convert YAML to JSON format', example: 'a: 1 → {"a":1}' },
-    { label: 'Structure', description: 'Analyze and display the JSON structure/schema', example: 'Shows keys, types, nesting depth' },
-    { label: 'JSON escape', description: 'Escape a string for embedding as a JSON value', example: 'he"llo → "he\\"llo"' },
-    { label: 'JSON unescape', description: 'Unescape a JSON string back to plain text', example: '"he\\"llo" → he"llo' },
+    { label: 'Validate', description: t('tools.json.features.Validate.description'), example: '{"a":1} → Valid JSON' },
+    { label: 'Pretty print', description: t('tools.json.features.Pretty print.description'), example: '{"a":1} → {\\n  "a": 1\\n}' },
+    { label: 'Minify', description: t('tools.json.features.Minify.description'), example: '{ "a" : 1 } → {"a":1}' },
+    { label: 'Flatten', description: t('tools.json.features.Flatten.description'), example: '{"a":{"b":1}} → {"a.b":1}' },
+    { label: 'Unflatten', description: t('tools.json.features.Unflatten.description'), example: '{"a.b":1} → {"a":{"b":1}}' },
+    { label: 'JSON → YAML', description: t('tools.json.features.JSON → YAML.description'), example: '{"a":1} → a: 1' },
+    { label: 'YAML → JSON', description: t('tools.json.features.YAML → JSON.description'), example: 'a: 1 → {"a":1}' },
+    { label: 'Structure', description: t('tools.json.features.Structure.description'), example: 'Shows keys, types, nesting depth' },
+    { label: 'JSON escape', description: t('tools.json.features.JSON escape.description'), example: 'he"llo → "he\\"llo"' },
+    { label: 'JSON unescape', description: t('tools.json.features.JSON unescape.description'), example: '"he\\"llo" → he"llo' },
   ],
   transform: (input: string) => {
     if (!input.trim()) return []
@@ -36,46 +37,46 @@ export const jsonTool: ToolDescriptor = {
     const isJson = parsed.ok
 
     const validateResult = isJson
-      ? 'Valid JSON'
-      : `Error: ${parsed.error}`
+      ? t('jsonTools.valid')
+      : t('jsonTools.errorPrefix') + parsed.error
 
     const prettyResult = isJson
       ? JSON.stringify(parsed.data, null, 2)
-      : 'Error: invalid JSON'
+      : t('jsonTools.errorPrefix') + t('jsonTools.error.invalidJSON')
 
     const minifyResult = isJson
       ? JSON.stringify(parsed.data)
-      : 'Error: invalid JSON'
+      : t('jsonTools.errorPrefix') + t('jsonTools.error.invalidJSON')
 
     const flattenResult = isJson && typeof parsed.data === 'object' && parsed.data !== null
       ? JSON.stringify(flattenJson(parsed.data), null, 2)
-      : 'Error: invalid JSON'
+      : t('jsonTools.errorPrefix') + t('jsonTools.error.invalidJSON')
 
     const unflattenResult = isJson && typeof parsed.data === 'object' && parsed.data !== null && !Array.isArray(parsed.data)
       ? JSON.stringify(unflattenJson(parsed.data as Record<string, unknown>), null, 2)
-      : 'Error: invalid JSON'
+      : t('jsonTools.errorPrefix') + t('jsonTools.error.invalidJSON')
 
     const jsonToYamlResult = isJson
       ? yaml.dump(parsed.data, { indent: 2, lineWidth: -1 })
-      : 'Error: invalid JSON'
+      : t('jsonTools.errorPrefix') + t('jsonTools.error.invalidJSON')
 
     const yamlToJsonResult = (() => {
       try {
         return JSON.stringify(yaml.load(trimmed), null, 2)
       } catch {
-        return 'Error: invalid YAML'
+        return t('jsonTools.errorPrefix') + t('jsonTools.error.invalidYAML')
       }
     })()
 
     const structureResult = isJson && typeof parsed.data === 'object' && parsed.data !== null
       ? analyzeStructure(parsed.data).report
-      : 'Error: invalid JSON'
+      : t('jsonTools.errorPrefix') + t('jsonTools.error.invalidJSON')
 
     const jsonEscapeResult = (() => {
       try {
         return JSON.stringify(input)
       } catch {
-        return 'Error: escape failed'
+        return t('jsonTools.errorPrefix') + t('jsonTools.error.escapeFailed')
       }
     })()
 
@@ -84,7 +85,7 @@ export const jsonTool: ToolDescriptor = {
         const unescaped = JSON.parse(input)
         return typeof unescaped === 'string' ? unescaped : JSON.stringify(unescaped, null, 2)
       } catch {
-        return 'Error: invalid JSON string'
+        return t('jsonTools.errorPrefix') + t('jsonTools.error.invalidJSONString')
       }
     })()
 

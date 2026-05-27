@@ -1,4 +1,5 @@
 import type { ToolDescriptor } from '../types/tool'
+import { t } from '../i18n/context'
 
 const MORSE_MAP: Record<string, string> = {
   'A': '.-', 'B': '-...', 'C': '-.-.', 'D': '-..', 'E': '.', 'F': '..-.',
@@ -19,18 +20,18 @@ export const transformsTool: ToolDescriptor = {
   name: 'Text Transforms',
   icon: '↻',
   category: 'transform',
-  description: 'Reverse, trim, capitalize, leet speak, morse, binary...',
+  description: t('tools.transforms.description'),
   features: [
-    { label: 'Reverse', description: 'Reverse the entire string character by character', example: 'hello → olleh' },
-    { label: 'Trim', description: 'Remove leading/trailing whitespace and collapse multiple blank lines', example: '"  hi  " → "hi"' },
-    { label: 'Capitalize', description: 'Capitalize the first letter of each word', example: 'hello world → Hello World' },
-    { label: 'Uncapitalize', description: 'Convert the entire text to lowercase', example: 'Hello World → hello world' },
-    { label: 'Slugify', description: 'Create a URL-friendly slug from text', example: 'Hello World! → hello-world' },
-    { label: 'Remove duplicates', description: 'Remove duplicate lines, keeping only unique ones', example: 'a\\na\\nb → a\\nb' },
-    { label: 'Sort lines', description: 'Sort all lines alphabetically', example: 'c\\na\\nb → a\\nb\\nc' },
-    { label: 'Leet speak', description: 'Replace letters with similar-looking numbers', example: 'hello → h3ll0' },
-    { label: 'Morse code', description: 'Encode text into Morse code with dots and dashes', example: 'HI → .... ..' },
-    { label: 'Binary', description: 'Convert each character to its 8-bit binary representation', example: 'A → 01000001' },
+    { label: 'Reverse', description: t('tools.transforms.features.Reverse.description'), example: 'hello → olleh' },
+    { label: 'Trim', description: t('tools.transforms.features.Trim.description'), example: '"  hi  " → "hi"' },
+    { label: 'Capitalize', description: t('tools.transforms.features.Capitalize.description'), example: 'hello world → Hello World' },
+    { label: 'Uncapitalize', description: t('tools.transforms.features.Uncapitalize.description'), example: 'Hello World → hello world' },
+    { label: 'Slugify', description: t('tools.transforms.features.Slugify.description'), example: 'Hello World! → hello-world' },
+    { label: 'Remove duplicates', description: t('tools.transforms.features.Remove duplicates.description'), example: 'a\\na\\nb → a\\nb' },
+    { label: 'Sort lines', description: t('tools.transforms.features.Sort lines.description'), example: 'c\\na\\nb → a\\nb\\nc' },
+    { label: 'Leet speak', description: t('tools.transforms.features.Leet speak.description'), example: 'hello → h3ll0' },
+    { label: 'Morse code', description: t('tools.transforms.features.Morse code.description'), example: 'HI → .... ..' },
+    { label: 'Binary', description: t('tools.transforms.features.Binary.description'), example: 'A → 01000001' },
   ],
   transform: (input: string) => {
     if (!input.trim()) return []

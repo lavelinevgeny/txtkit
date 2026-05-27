@@ -1,20 +1,21 @@
 import type { ToolDescriptor } from '../types/tool'
+import { t } from '../i18n/context'
 
 export const statsTool: ToolDescriptor = {
   id: 'stats',
   name: 'Text Stats',
   icon: '#',
   category: 'analysis',
-  description: 'Символы, слова, строки, предложения, время чтения, байты',
+  description: t('tools.stats.description'),
   features: [
-    { label: 'Characters', description: 'Total number of characters including spaces', example: '"hello" → 5' },
-    { label: 'Words', description: 'Number of words separated by whitespace', example: '"hello world" → 2' },
-    { label: 'No spaces', description: 'Character count excluding all whitespace', example: '"a b c" → 3' },
-    { label: 'Lines', description: 'Number of lines in the text', example: '"a\\nb\\nc" → 3' },
-    { label: 'Sentences', description: 'Estimated sentence count based on punctuation', example: '"Hi. Bye." → 2' },
-    { label: 'Unique words', description: 'Number of distinct words (case-insensitive)', example: '"a a b" → 2' },
-    { label: 'Bytes (UTF-8)', description: 'Size of the text in bytes when encoded as UTF-8', example: '"hi" → 2 B' },
-    { label: 'Reading time', description: 'Estimated reading time at 250 words per minute', example: '500 words → ~2 min' },
+    { label: 'Characters', description: t('tools.stats.features.Characters.description'), example: '"hello" → 5' },
+    { label: 'Words', description: t('tools.stats.features.Words.description'), example: '"hello world" → 2' },
+    { label: 'No spaces', description: t('tools.stats.features.No spaces.description'), example: '"a b c" → 3' },
+    { label: 'Lines', description: t('tools.stats.features.Lines.description'), example: '"a\\nb\\nc" → 3' },
+    { label: 'Sentences', description: t('tools.stats.features.Sentences.description'), example: '"Hi. Bye." → 2' },
+    { label: 'Unique words', description: t('tools.stats.features.Unique words.description'), example: '"a a b" → 2' },
+    { label: 'Bytes (UTF-8)', description: t('tools.stats.features.Bytes (UTF-8).description'), example: '"hi" → 2 B' },
+    { label: 'Reading time', description: t('tools.stats.features.Reading time.description'), example: '500 words → ~2 min' },
   ],
   transform: (input: string) => {
     if (!input.trim()) return []
