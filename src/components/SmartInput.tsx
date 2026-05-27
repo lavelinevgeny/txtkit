@@ -14,7 +14,9 @@ export function SmartInput() {
     const el = textareaRef.current
     if (el) {
       el.style.height = 'auto'
-      el.style.height = Math.min(el.scrollHeight, 240) + 'px'
+      const newHeight = Math.min(el.scrollHeight, 240)
+      el.style.height = newHeight + 'px'
+      el.style.overflowY = el.scrollHeight > 240 ? 'auto' : 'hidden'
     }
   }, [input])
 
@@ -37,14 +39,14 @@ export function SmartInput() {
 
   return (
     <div className="w-full max-w-xl mx-auto">
-      <div className="relative rounded-xl overflow-hidden">
+      <div className="relative">
         <textarea
           ref={textareaRef}
           value={input}
           onChange={handleChange}
           onPaste={handlePaste}
           placeholder={t('smartInput.placeholder')}
-          className="w-full bg-surface border border-border px-4 py-3 pr-10 font-mono text-sm text-text resize-none outline-none overflow-y-auto focus:border-accent/50 transition-colors placeholder:text-muted/40 scrollbar-transparent"
+          className="block w-full bg-surface border border-border rounded-xl px-4 py-3 pr-10 font-mono text-sm text-text resize-none outline-none overflow-y-hidden focus:border-accent/50 transition-colors placeholder:text-muted/40 scrollbar-transparent"
           rows={1}
         />
         {input && (
