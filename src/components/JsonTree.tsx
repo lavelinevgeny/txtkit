@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { copyToClipboard } from '../utils/clipboard'
+import { useTranslation } from '../i18n/context'
 
 interface JsonTreeNodeProps {
   keyName?: string
@@ -115,6 +116,7 @@ function JsonTreeNode({ keyName, value, depth, isLast }: JsonTreeNodeProps) {
 }
 
 function CopyButton({ text }: { text: string }) {
+  const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async (e: React.MouseEvent) => {
@@ -133,7 +135,7 @@ function CopyButton({ text }: { text: string }) {
         copied ? 'text-emerald-400 opacity-100' : 'text-zinc-500 hover:text-zinc-300'
       }`}
     >
-      {copied ? '✓' : 'copy'}
+      {copied ? '✓' : t('jsonTree.copy')}
     </button>
   )
 }
