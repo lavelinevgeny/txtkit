@@ -38,7 +38,7 @@ export const jsonTool: ToolDescriptor = {
 
     const validateResult = isJson
       ? t('jsonTools.valid')
-      : t('jsonTools.errorPrefix') + parsed.error
+      : t('jsonTools.errorPrefix') + t('jsonTools.error.invalidJSON')
 
     const prettyResult = isJson
       ? JSON.stringify(parsed.data, null, 2)

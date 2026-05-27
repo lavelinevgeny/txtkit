@@ -1,6 +1,7 @@
 import type { DetectionResult } from '../types/tool'
 import { t } from '../i18n/translate'
 import { pluralRu } from '../i18n/plural'
+import { useStore } from '../store/useStore'
 
 const detectors: Array<{
   type: string
@@ -129,7 +130,10 @@ const detectors: Array<{
     detect: (input) => {
       const words = input.split(/\s+/).filter(Boolean)
       if (words.length >= 2) {
-        const form = pluralRu(words.length, ['слово', 'слова', 'слов'])
+        const locale = useStore.getState().locale
+        const form = locale === 'ru'
+          ? pluralRu(words.length, ['слово', 'слова', 'слов'])
+          : words.length === 1 ? 'word' : 'words'
         const wordLabel = t('detect.words', { count: words.length, form })
         return { type: 'multi-word', label: wordLabel, confidence: 0.5 }
       }

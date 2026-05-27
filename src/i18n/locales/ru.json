@@ -86,6 +86,7 @@
   "encode.error.encodingFailed": "Ошибка: кодирование не удалось",
   "encode.error.invalidUrl": "Ошибка: невалидная URL-кодировка",
   "encode.error.notQuoted": "Ошибка: не обёрнуто в кавычки",
+  "tree.description": "Интерактивное дерево",
   "jsonTools.valid": "Валидный JSON",
   "jsonTools.errorPrefix": "Ошибка: ",
   "jsonTools.error.invalidJSON": "невалидный JSON",
