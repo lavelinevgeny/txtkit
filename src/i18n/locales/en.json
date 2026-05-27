@@ -12,8 +12,6 @@
   "catalog.openTool": "Open {name} →",
   "catalog.closeHint": "Press",
   "catalog.toClose": "to close",
-  "expanded.tree": "Tree",
-  "expanded.treeDesc": "Interactive tree view",
   "jsonTree.copy": "copy",
   "tools.case.description": "17 case conversion formats",
   "tools.case.features.camelCase.description": "First word lowercase, subsequent words capitalized, no separators",

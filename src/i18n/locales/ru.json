@@ -12,8 +12,6 @@
   "catalog.openTool": "Открыть {name} →",
   "catalog.closeHint": "Нажмите",
   "catalog.toClose": "чтобы закрыть",
-  "expanded.tree": "Дерево",
-  "expanded.treeDesc": "Интерактивный просмотр структуры",
   "jsonTree.copy": "копия",
   "tools.case.description": "17 форматов конверсии регистра",
   "tools.case.features.camelCase.description": "Первое слово с маленькой буквы, остальные с большой, без разделителей",
