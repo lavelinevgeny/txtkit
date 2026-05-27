@@ -6,6 +6,8 @@
   "resultTile.copied": "✓ Скопировано",
   "resultTiles.showAll": "Показать все ({count})",
   "resultTiles.collapse": "Свернуть",
+  "resultTiles.filter": "Фильтр...",
+  "resultTiles.noResults": "Ничего не найдено",
   "catalogCard.soon": "Скоро",
   "catalog.subtitle": "все инструменты",
   "catalog.search": "Поиск...",

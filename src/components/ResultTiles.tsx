@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { getAllTools } from '../tools/registry'
 import { detectInputTypes } from '../tools/detect'
@@ -14,6 +14,7 @@ export function ResultTiles() {
   const activeToolId = useStore(s => s.activeToolId)
   const [expanded, setExpanded] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
 
   const allResults = useMemo(() => {
     if (!input.trim()) return []
@@ -30,21 +31,21 @@ export function ResultTiles() {
 
   useMemo(() => detectInputTypes(input), [input])
 
-  useEffect(() => {
-    setExpandedId(null)
-  }, [input])
-
   const filteredResults = activeToolId
     ? allResults.filter(r => r.toolId === activeToolId)
     : allResults
 
-  if (!input.trim() || filteredResults.length === 0) return null
+  const searchedResults = search
+    ? filteredResults.filter(r => r.result.label.toLowerCase().includes(search.toLowerCase()))
+    : filteredResults
 
-  const visibleResults = expanded || activeToolId
-    ? filteredResults
-    : filteredResults.slice(0, INITIAL_LIMIT)
+  if (!input.trim() || (searchedResults.length === 0 && !search)) return null
 
-  const hasMore = !activeToolId && !expanded && filteredResults.length > INITIAL_LIMIT
+  const visibleResults = expanded || activeToolId || search
+    ? searchedResults
+    : searchedResults.slice(0, INITIAL_LIMIT)
+
+  const hasMore = !activeToolId && !expanded && !search && searchedResults.length > INITIAL_LIMIT
 
   const handleToggle = (id: string) => {
     setExpandedId(prev => prev === id ? null : id)
@@ -61,6 +62,19 @@ export function ResultTiles() {
 
   return (
     <div className="w-full max-w-xl mx-auto mt-3">
+      {(searchedResults.length > 0 || search) && (
+        <div className="mb-1.5">
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={t('resultTiles.filter')}
+            className="w-full bg-zinc-800 rounded-lg px-3 py-1.5 text-xs text-text outline-none border border-transparent focus:border-border placeholder:text-muted/50"
+          />
+          {searchedResults.length === 0 && (
+            <p className="text-xs text-muted text-center py-3">{t('resultTiles.noResults')}</p>
+          )}
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-1.5">
         {isJsonTool && parsedJson !== null && (
           isTreeExpanded ? (
