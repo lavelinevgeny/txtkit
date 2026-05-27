@@ -17,6 +17,7 @@ export interface ToolDescriptor {
   icon: string
   category: Category
   description: string
+  features?: { label: string; description: string; example: string }[]
   detect?: (input: string) => DetectionResult | null
   transform: (input: string) => TransformResult[]
 }

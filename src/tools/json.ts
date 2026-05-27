@@ -16,6 +16,18 @@ export const jsonTool: ToolDescriptor = {
   icon: '{ }',
   category: 'json',
   description: 'Format, validate, flatten, YAML convert, tree view',
+  features: [
+    { label: 'Validate', description: 'Check if the input is valid JSON and report errors', example: '{"a":1} → Valid JSON' },
+    { label: 'Pretty print', description: 'Format JSON with 2-space indentation', example: '{"a":1} → {\\n  "a": 1\\n}' },
+    { label: 'Minify', description: 'Remove all whitespace to produce compact JSON', example: '{ "a" : 1 } → {"a":1}' },
+    { label: 'Flatten', description: 'Convert nested objects to dot-notation keys', example: '{"a":{"b":1}} → {"a.b":1}' },
+    { label: 'Unflatten', description: 'Expand dot-notation keys back to nested objects', example: '{"a.b":1} → {"a":{"b":1}}' },
+    { label: 'JSON → YAML', description: 'Convert JSON to YAML format', example: '{"a":1} → a: 1' },
+    { label: 'YAML → JSON', description: 'Convert YAML to JSON format', example: 'a: 1 → {"a":1}' },
+    { label: 'Structure', description: 'Analyze and display the JSON structure/schema', example: 'Shows keys, types, nesting depth' },
+    { label: 'JSON escape', description: 'Escape a string for embedding as a JSON value', example: 'he"llo → "he\\"llo"' },
+    { label: 'JSON unescape', description: 'Unescape a JSON string back to plain text', example: '"he\\"llo" → he"llo' },
+  ],
   transform: (input: string) => {
     if (!input.trim()) return []
 

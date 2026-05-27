@@ -27,7 +27,7 @@ export function BottomCarousel() {
           className="flex-shrink-0 bg-accent/10 border border-accent/30 rounded-lg px-3 py-2 text-center min-w-[56px] hover:bg-accent/20 transition-colors"
         >
           <div className="font-mono font-bold text-accent text-sm">⊞</div>
-          <div className="text-[7px] text-accent font-medium">Все</div>
+          <div className="text-[7px] text-accent font-medium">All</div>
         </button>
 
         <div className="w-px h-6 bg-border mx-1" />
