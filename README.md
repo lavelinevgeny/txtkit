@@ -46,16 +46,15 @@ npm run build
 
 #### 1. Создать проект в Cloudflare Pages
 
-1. Войти на [dash.cloudflare.com](https://dash.cloudflare.com)
-2. В левом сайдбаре: **Workers & Pages**
-3. Переключиться на вкладку **Pages** (рядом с Workers)
-4. Нажать **Create** → **Upload assets**
-5. Название проекта: `txtkit`
-6. Собрать и загрузить первый раз вручную:
+1. Собрать проект:
    ```bash
    npm run build
-   npx wrangler pages deploy dist/ --project-name=txtkit
    ```
+2. Войти на [dash.cloudflare.com](https://dash.cloudflare.com)
+3. В левом сайдбаре: **Compute** → **Workers & Pages**
+4. Нажать **Create application** → **Upload your static files**
+5. Выбрать каталог `dist/`
+6. Название проекта: `txtkit`
 
 #### 2. Создать API Token
 
