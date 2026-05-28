@@ -11,6 +11,25 @@ export interface DetectionResult {
   confidence: number
 }
 
+export interface RelevanceConfig {
+  [detectionType: string]: {
+    tool: number
+    transforms?: {
+      [transformLabel: string]: number
+    }
+  }
+}
+
+export interface ToolScope {
+  maxLength?: number
+  minLength?: number
+  singleLine?: boolean
+  multiLine?: boolean
+  truncate?: {
+    maxLength: number
+  }
+}
+
 export interface ToolDescriptor {
   id: string
   name: string
@@ -20,4 +39,6 @@ export interface ToolDescriptor {
   features?: { label: string; description: string; example: string }[]
   detect?: (input: string) => DetectionResult | null
   transform: (input: string) => TransformResult[]
+  relevance?: RelevanceConfig
+  scope?: ToolScope
 }
