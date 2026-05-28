@@ -43,10 +43,14 @@ export function ResultTile({ result, accent, isExpanded, onToggle, truncationWar
 
   return (
     <div
+      onClick={() => {
+        if (window.getSelection()?.toString()) return
+        onToggle?.()
+      }}
       className="bg-surface border border-accent rounded-lg px-3 py-2 col-span-2 transition-all"
     >
       <div className="text-[9px] text-accent font-medium mb-1">{result.label}</div>
-      <div className="font-mono text-xs text-text break-all max-h-32 overflow-y-auto scrollbar-thin">
+      <div className="font-mono text-xs text-text break-all max-h-32 overflow-y-auto scrollbar-thin" onClick={e => e.stopPropagation()}>
         {result.value}
       </div>
       {truncationWarning && (
