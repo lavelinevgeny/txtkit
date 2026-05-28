@@ -86,13 +86,16 @@ npm run build
 - **Security → Bots** → включить **Bot Fight Mode**
 - **Security → WAF → Rate limiting rules** → правило: 100 запросов / 10 сек / IP → Block
 
-### Повторные деплои
+### Релиз
 
-После настройки пайплайна деплой происходит автоматически при пуше тега:
+Одной командой — проверки, bump версии, коммит с тегом и push:
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+npm run release:patch   # 1.0.0 → 1.0.1
+npm run release:minor   # 1.0.0 → 1.1.0
+npm run release:major   # 1.0.0 → 2.0.0
 ```
 
-GitHub Actions выполнит: `lint → test → build → deploy` в Cloudflare Pages.
+Каждая команда выполняет: `lint → test → build → bump версии → коммит + тег → push`.
+
+GitHub Actions подхватит тег и задеплоит в Cloudflare Pages.
