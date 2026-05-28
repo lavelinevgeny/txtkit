@@ -52,6 +52,13 @@ describe('encodeTool', () => {
     expect(encodeTool.transform('')).toEqual([])
   })
 
+  it('round-trips Cyrillic through Base64', () => {
+    const original = 'Привет мир'
+    const encoded = encodeTool.transform(original).find(r => r.label === 'Base64 encode')!.value
+    const decoded = encodeTool.transform(encoded).find(r => r.label === 'Base64 decode')!.value
+    expect(decoded).toBe(original)
+  })
+
   it('Base64 decode returns error for invalid input', () => {
     const results = encodeTool.transform('not-valid-base64!!!')
     const r = results.find(r => r.label === 'Base64 decode')

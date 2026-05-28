@@ -21,7 +21,7 @@ export const encodeTool: ToolDescriptor = {
     if (!input.trim()) return []
 
     const base64Decode = (() => {
-      try { return atob(input.trim()) } catch { return t('encode.error.invalidBase64') }
+      try { return decodeURIComponent(escape(atob(input.trim()))) } catch { return t('encode.error.invalidBase64') }
     })()
 
     const base64Encode = (() => {
