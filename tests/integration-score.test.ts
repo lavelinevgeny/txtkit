@@ -97,7 +97,7 @@ describe('integration: smart tile prioritization', () => {
       .filter(s => s.score === jsonEntry.score)
       .map(s => s.id)
     const originalZeroScoreIds = tools
-      .filter((t, i) => {
+      .filter((t) => {
         const s = scoreTool(t, detections) + (matchesScope(t.scope, input) ? 0 : -1)
         return s === jsonEntry.score
       })

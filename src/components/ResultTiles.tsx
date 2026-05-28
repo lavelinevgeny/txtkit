@@ -26,8 +26,6 @@ export function ResultTiles() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
-  const locale = useStore(s => s.locale)
-
   const allResults = useMemo(() => {
     if (!input.trim()) return []
 
@@ -76,7 +74,7 @@ export function ResultTiles() {
     }
 
     return results
-  }, [input, locale, activeToolId, t])
+  }, [input, activeToolId, t])
 
   const filteredResults = allResults
 
@@ -168,7 +166,7 @@ export function ResultTiles() {
             )}
           </div>
         )}
-        {grouped.map((group, gi) => {
+        {grouped.map((group) => {
           const startIdx = globalIndex
           globalIndex += group.results.length
           return (
