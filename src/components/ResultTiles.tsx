@@ -146,14 +146,17 @@ export function ResultTiles() {
         {showTreeTile && (
           <div className="grid grid-cols-2 gap-1.5">
             {isTreeExpanded ? (
-              <div className="bg-surface border border-accent rounded-lg px-3 py-2 col-span-2">
-                <button
-                  onClick={() => handleToggle(treeTileId)}
-                  className="text-[9px] text-accent font-medium mb-1 hover:text-accent/80"
-                >
-                  Tree
-                </button>
-                <JsonTree data={parsedJson} />
+              <div
+                onClick={() => {
+                  if (window.getSelection()?.toString()) return
+                  handleToggle(treeTileId)
+                }}
+                className="bg-surface border border-accent rounded-lg px-3 py-2 col-span-2"
+              >
+                <div className="text-[9px] text-accent font-medium mb-1">Tree</div>
+                <div onClick={e => e.stopPropagation()}>
+                  <JsonTree data={parsedJson} />
+                </div>
               </div>
             ) : (
               <button
