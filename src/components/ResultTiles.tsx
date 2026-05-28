@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { getAllTools } from '../tools/registry'
 import { detectInputTypes } from '../tools/detect'
+import { scoreTool, scoreTransform, matchesScope, getEffectiveInput } from '../tools/score'
 import { ResultTile } from './ResultTile'
 import { JsonTree } from './JsonTree'
 import { useTranslation } from '../i18n/context'
@@ -18,24 +19,50 @@ export function ResultTiles() {
 
   const locale = useStore(s => s.locale)
 
-  const allResults = useMemo(() => {
-    if (!input.trim()) return []
+  const { allResults, truncationInfo } = useMemo(() => {
+    if (!input.trim()) return { allResults: [], truncationInfo: null }
+
+    const detections = detectInputTypes(input)
     const tools = getAllTools()
+    const isManual = !!activeToolId
+
+    const scoredTools = tools
+      .map((tool, index) => {
+        let score = scoreTool(tool, detections)
+        if (!matchesScope(tool.scope, input)) score -= 1
+        return { tool, score, index }
+      })
+      .sort((a, b) => b.score - a.score || a.index - b.index)
+
+    let truncationInfo: { originalLength: number; limit: number } | null = null
     const results: Array<{ toolId: string; toolName: string; result: { label: string; value: string } }> = []
-    for (const tool of tools) {
-      const toolResults = tool.transform(input)
-      for (const r of toolResults) {
-        results.push({ toolId: tool.id, toolName: tool.name, result: r })
+
+    for (const { tool } of scoredTools) {
+      if (isManual && activeToolId !== tool.id) continue
+
+      const { input: effectiveInput, truncated, originalLength, limit } = getEffectiveInput(input, tool.scope, isManual)
+      if (truncated && !truncationInfo) {
+        truncationInfo = { originalLength, limit }
+      }
+
+      const toolResults = tool.transform(effectiveInput)
+
+      const scoredResults = toolResults
+        .map((r, idx) => {
+          const s = scoreTransform(tool, r.label, detections)
+          return { result: r, score: s, index: idx }
+        })
+        .sort((a, b) => b.score - a.score || a.index - b.index)
+
+      for (const { result } of scoredResults) {
+        results.push({ toolId: tool.id, toolName: tool.name, result })
       }
     }
-    return results
-  }, [input, locale])
 
-  useMemo(() => detectInputTypes(input), [input, locale])
+    return { allResults: results, truncationInfo }
+  }, [input, locale, activeToolId])
 
-  const filteredResults = activeToolId
-    ? allResults.filter(r => r.toolId === activeToolId)
-    : allResults
+  const filteredResults = allResults
 
   const searchedResults = search
     ? filteredResults.filter(r => r.result.label.toLowerCase().includes(search.toLowerCase()))
@@ -82,6 +109,18 @@ export function ResultTiles() {
           )}
         </div>
       )}
+      {truncationInfo && activeToolId && (() => {
+        const tool = getAllTools().find(t => t.id === activeToolId)
+        return (
+          <div className="mb-1.5 px-3 py-1.5 text-xs text-amber-400 bg-amber-400/10 rounded-lg border border-amber-400/20">
+            {t('warnings.inputTruncated', {
+              limit: String(truncationInfo.limit),
+              total: String(truncationInfo.originalLength),
+              toolName: tool?.name ?? '',
+            })}
+          </div>
+        )
+      })()}
       <div className="grid grid-cols-2 gap-1.5">
         {showTreeTile && (
           isTreeExpanded ? (
