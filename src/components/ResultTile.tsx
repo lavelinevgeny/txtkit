@@ -8,9 +8,10 @@ interface Props {
   accent?: boolean
   isExpanded?: boolean
   onToggle?: () => void
+  truncationWarning?: string
 }
 
-export function ResultTile({ result, accent, isExpanded, onToggle }: Props) {
+export function ResultTile({ result, accent, isExpanded, onToggle, truncationWarning }: Props) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
 
@@ -27,12 +28,15 @@ export function ResultTile({ result, accent, isExpanded, onToggle }: Props) {
     return (
       <button
         onClick={onToggle}
-        className="bg-surface border border-border rounded-lg px-3 py-2 text-left hover:border-accent/30 transition-all w-full"
+        className="bg-surface border border-border rounded-lg px-3 py-2 text-left hover:border-accent/30 transition-all w-full relative"
       >
         <div className="text-[9px] text-muted">{result.label}</div>
         <div className={`font-mono text-xs truncate ${accent ? 'text-accent' : 'text-text'}`}>
           {result.value}
         </div>
+        {truncationWarning && (
+          <span className="absolute top-1.5 right-2 text-[10px] text-amber-400" title={truncationWarning}>⚠</span>
+        )}
       </button>
     )
   }
@@ -45,6 +49,11 @@ export function ResultTile({ result, accent, isExpanded, onToggle }: Props) {
       <div className="font-mono text-xs text-text break-all max-h-32 overflow-y-auto scrollbar-thin">
         {result.value}
       </div>
+      {truncationWarning && (
+        <div className="mt-1.5 px-2 py-1 text-[10px] text-amber-400 bg-amber-400/10 rounded border border-amber-400/20">
+          {truncationWarning}
+        </div>
+      )}
       {result.value && (
         <div className="flex justify-end mt-2">
           <button

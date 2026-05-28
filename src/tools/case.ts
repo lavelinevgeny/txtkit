@@ -125,8 +125,9 @@ export const caseTool: ToolDescriptor = {
     { label: 'lower_case', description: t('tools.case.features.lower_case.description'), example: 'my_variable_name' },
     { label: 'UPPER_CASE', description: t('tools.case.features.UPPER_CASE.description'), example: 'MY VARIABLE NAME' },
   ],
-  transform: (input: string) => {
-    if (!input.trim()) return []
+  transform: (rawInput: string) => {
+    if (!rawInput.trim()) return []
+    const input = rawInput.length > 200 ? rawInput.slice(0, 200) : rawInput
     const words = toWords(input)
     const results = formats.map(f => ({
       label: f.label,
