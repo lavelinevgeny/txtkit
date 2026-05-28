@@ -98,12 +98,26 @@ export function ResultTiles() {
     return filteredResults.filter(r => !r.result.isTree)
   }, [filteredResults])
 
+  const q = search.toLowerCase()
+
+  const toolIdMatches = search
+    ? new Set(
+        Object.entries(GROUP_META)
+          .filter(([, meta]) => meta.label.toLowerCase().includes(q))
+          .map(([id]) => id)
+      )
+    : null
+
   const searchedResults = search
-    ? nonTreeResults.filter(r => r.result.label.toLowerCase().includes(search.toLowerCase()))
+    ? nonTreeResults.filter(r =>
+        r.result.label.toLowerCase().includes(q) || toolIdMatches!.has(r.toolId)
+      )
     : nonTreeResults
 
   const searchedTreeResults = search
-    ? treeResults.filter(r => r.result.label.toLowerCase().includes(search.toLowerCase()))
+    ? treeResults.filter(r =>
+        r.result.label.toLowerCase().includes(q) || toolIdMatches!.has(r.toolId)
+      )
     : treeResults
 
   const visibleResults = expanded || activeToolId || search
@@ -143,12 +157,22 @@ export function ResultTiles() {
     <div className="w-full max-w-xl mx-auto mt-3">
       {(searchedResults.length > 0 || search || hasAnyTree) && (
         <div className="mb-1.5">
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder={t('resultTiles.filter')}
-            className="w-full bg-zinc-800 rounded-lg px-3 py-1.5 text-xs text-text outline-none border border-transparent focus:border-border placeholder:text-muted/50"
-          />
+          <div className="relative">
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={t('resultTiles.filter')}
+              className="w-full bg-zinc-800 rounded-lg px-3 py-1.5 pr-7 text-xs text-text outline-none border border-transparent focus:border-border placeholder:text-muted/50"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 bg-zinc-700 rounded flex items-center justify-center text-muted hover:text-text transition-colors text-[10px]"
+              >
+                ✕
+              </button>
+            )}
+          </div>
           {searchedResults.length === 0 && !hasAnyTree && (
             <p className="text-xs text-muted text-center py-3">{t('resultTiles.noResults')}</p>
           )}
