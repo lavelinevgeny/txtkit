@@ -106,5 +106,6 @@
   "1cBlocks.errorPrefix": "Ошибка: ",
   "1cBlocks.error.invalidFormat": "невалидный формат блоков",
   "1cBlocks.noEmbeddedJSON": "Встроенный JSON не найден",
-  "1cBlocks.singleBlock": "Одиночный блок (нечего разбивать)"
+  "1cBlocks.singleBlock": "Одиночный блок (нечего разбивать)",
+  "warnings.inputTruncated": "Текст обрезан до {limit} символов из {total}. {toolName} предназначен для коротких текстов."
 }

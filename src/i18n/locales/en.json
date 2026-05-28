@@ -106,5 +106,6 @@
   "1cBlocks.errorPrefix": "Error: ",
   "1cBlocks.error.invalidFormat": "invalid block format",
   "1cBlocks.noEmbeddedJSON": "No embedded JSON found",
-  "1cBlocks.singleBlock": "Single block (nothing to split)"
+  "1cBlocks.singleBlock": "Single block (nothing to split)",
+  "warnings.inputTruncated": "Text trimmed to {limit} of {total} characters. {toolName} is designed for short texts."
 }
