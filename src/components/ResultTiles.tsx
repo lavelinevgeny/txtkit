@@ -1,11 +1,19 @@
 import { useMemo, useState } from 'react'
+import type { ComponentType } from 'react'
+import type { TransformResult } from '../types/tool'
 import { useStore } from '../store/useStore'
 import { getAllTools } from '../tools/registry'
 import { detectInputTypes } from '../tools/detect'
 import { scoreTool, scoreTransform, matchesScope } from '../tools/score'
 import { ResultTile } from './ResultTile'
 import { JsonTree } from './JsonTree'
+import { BlockTree } from './BlockTree'
 import { useTranslation } from '../i18n/context'
+
+const TREE_RENDERERS: Record<string, ComponentType<{ data: unknown }>> = {
+  'json': JsonTree,
+  '1c-log-blocks': BlockTree,
+}
 
 const INITIAL_LIMIT = 8
 const GROUP_ORDER = ['case', 'transforms', 'stats', 'encode', 'json', '1c-blocks']
@@ -16,6 +24,13 @@ const GROUP_META: Record<string, { icon: string; label: string }> = {
   encode: { icon: '⇄', label: 'Encode' },
   json: { icon: '{ }', label: 'JSON' },
   '1c-blocks': { icon: '{,}', label: '1C' },
+}
+
+interface GroupedResult {
+  toolId: string
+  toolName: string
+  result: TransformResult
+  truncationWarning?: string
 }
 
 export function ResultTiles() {
@@ -41,12 +56,7 @@ export function ResultTiles() {
       })
       .sort((a, b) => b.score - a.score || a.index - b.index)
 
-    const results: Array<{
-      toolId: string
-      toolName: string
-      result: { label: string; value: string }
-      truncationWarning?: string
-    }> = []
+    const results: GroupedResult[] = []
 
     for (const { tool } of scoredTools) {
       if (isManual && activeToolId !== tool.id) continue
@@ -78,20 +88,23 @@ export function ResultTiles() {
 
   const filteredResults = allResults
 
+  const treeResults = useMemo(() => {
+    return filteredResults.filter(r =>
+      r.result.isTree && r.result.treeKey && TREE_RENDERERS[r.result.treeKey]
+    )
+  }, [filteredResults])
+
+  const nonTreeResults = useMemo(() => {
+    return filteredResults.filter(r => !r.result.isTree)
+  }, [filteredResults])
+
   const searchedResults = search
-    ? filteredResults.filter(r => r.result.label.toLowerCase().includes(search.toLowerCase()))
-    : filteredResults
+    ? nonTreeResults.filter(r => r.result.label.toLowerCase().includes(search.toLowerCase()))
+    : nonTreeResults
 
-  let parsedJson: unknown = null
-  if (!activeToolId || activeToolId === 'json') {
-    try { parsedJson = JSON.parse(input.trim()) } catch { /* ignore */ }
-  }
-
-  const treeLabel = 'Tree'
-  const treeMatchesSearch = search
-    ? treeLabel.toLowerCase().includes(search.toLowerCase())
-    : true
-  const showTreeTile = parsedJson !== null && treeMatchesSearch
+  const searchedTreeResults = search
+    ? treeResults.filter(r => r.result.label.toLowerCase().includes(search.toLowerCase()))
+    : treeResults
 
   const visibleResults = expanded || activeToolId || search
     ? searchedResults
@@ -114,7 +127,9 @@ export function ResultTiles() {
     return ordered
   }, [visibleResults])
 
-  if (!input.trim() || (searchedResults.length === 0 && !showTreeTile && !search)) return null
+  const hasAnyTree = searchedTreeResults.length > 0
+
+  if (!input.trim() || (searchedResults.length === 0 && !hasAnyTree && !search)) return null
 
   const hasMore = !activeToolId && !expanded && !search && searchedResults.length > INITIAL_LIMIT
 
@@ -122,14 +137,11 @@ export function ResultTiles() {
     setExpandedId(prev => prev === id ? null : id)
   }
 
-  const treeTileId = 'json-tree'
-  const isTreeExpanded = expandedId === treeTileId
-
   let globalIndex = 0
 
   return (
     <div className="w-full max-w-xl mx-auto mt-3">
-      {(searchedResults.length > 0 || search || showTreeTile) && (
+      {(searchedResults.length > 0 || search || hasAnyTree) && (
         <div className="mb-1.5">
           <input
             value={search}
@@ -137,36 +149,48 @@ export function ResultTiles() {
             placeholder={t('resultTiles.filter')}
             className="w-full bg-zinc-800 rounded-lg px-3 py-1.5 text-xs text-text outline-none border border-transparent focus:border-border placeholder:text-muted/50"
           />
-          {searchedResults.length === 0 && !showTreeTile && (
+          {searchedResults.length === 0 && !hasAnyTree && (
             <p className="text-xs text-muted text-center py-3">{t('resultTiles.noResults')}</p>
           )}
         </div>
       )}
       <div className="flex flex-col gap-3">
-        {showTreeTile && (
+        {hasAnyTree && (
           <div className="grid grid-cols-2 gap-1.5">
-            {isTreeExpanded ? (
-              <div
-                onClick={() => {
-                  if (window.getSelection()?.toString()) return
-                  handleToggle(treeTileId)
-                }}
-                className="bg-surface border border-accent rounded-lg px-3 py-2 col-span-2"
-              >
-                <div className="text-[9px] text-accent font-medium mb-1">Tree</div>
-                <div onClick={e => e.stopPropagation()}>
-                  <JsonTree data={parsedJson} />
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => handleToggle(treeTileId)}
-                className="bg-surface border border-border rounded-lg px-3 py-2 text-left hover:border-accent/30 transition-all"
-              >
-                <div className="text-[9px] text-muted">Tree</div>
-                <div className="font-mono text-xs truncate text-text">{t('tree.description')}</div>
-              </button>
-            )}
+            {searchedTreeResults.map((tr) => {
+              const treeTileId = `tree-${tr.result.treeKey}`
+              const isTreeExpanded = expandedId === treeTileId
+              const TreeComponent = TREE_RENDERERS[tr.result.treeKey!]
+
+              if (isTreeExpanded) {
+                return (
+                  <div
+                    key={treeTileId}
+                    onClick={() => {
+                      if (window.getSelection()?.toString()) return
+                      handleToggle(treeTileId)
+                    }}
+                    className="bg-surface border border-accent rounded-lg px-3 py-2 col-span-2"
+                  >
+                    <div className="text-[9px] text-accent font-medium mb-1">{tr.result.label}</div>
+                    <div onClick={e => e.stopPropagation()}>
+                      <TreeComponent data={tr.result.treeData} />
+                    </div>
+                  </div>
+                )
+              }
+
+              return (
+                <button
+                  key={treeTileId}
+                  onClick={() => handleToggle(treeTileId)}
+                  className="bg-surface border border-border rounded-lg px-3 py-2 text-left hover:border-accent/30 transition-all"
+                >
+                  <div className="text-[9px] text-muted">{tr.result.label}</div>
+                  <div className="font-mono text-xs truncate text-text">{t('tree.description')}</div>
+                </button>
+              )
+            })}
           </div>
         )}
         {grouped.map((group) => {

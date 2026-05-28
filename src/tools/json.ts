@@ -28,6 +28,7 @@ export const jsonTool: ToolDescriptor = {
     { label: 'Structure', description: t('tools.json.features.Structure.description'), example: 'Shows keys, types, nesting depth' },
     { label: 'JSON escape', description: t('tools.json.features.JSON escape.description'), example: 'he"llo → "he\\"llo"' },
     { label: 'JSON unescape', description: t('tools.json.features.JSON unescape.description'), example: '"he\\"llo" → he"llo' },
+    { label: 'JSON tree', description: t('tools.json.features.JSON tree.description'), example: 'Interactive tree' },
   ],
   transform: (input: string) => {
     if (!input.trim()) return []
@@ -100,6 +101,9 @@ export const jsonTool: ToolDescriptor = {
       { label: 'Structure', value: structureResult },
       { label: 'JSON escape', value: jsonEscapeResult },
       { label: 'JSON unescape', value: jsonUnescapeResult },
+      ...(isJson
+        ? [{ label: 'JSON tree' as const, value: '', isTree: true as const, treeKey: 'json' as const, treeData: parsed.data }]
+        : []),
     ]
   },
   relevance: {

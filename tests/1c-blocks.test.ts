@@ -93,12 +93,14 @@ describe('blocksTool', () => {
     })
   })
 
-  describe('Tree view', () => {
-    it('returns JSON suitable for tree rendering', () => {
+  describe('1C log tree', () => {
+    it('returns tree result with AST data', () => {
       const results = blocksTool.transform('{1,{2}}')
-      const r = results.find(r => r.label === 'Tree view')
-      const parsed = JSON.parse(r!.value)
-      expect(parsed.children).toBeDefined()
+      const r = results.find(r => r.label === '1C log tree')
+      expect(r).toBeDefined()
+      expect(r!.isTree).toBe(true)
+      expect(r!.treeKey).toBe('1c-log-blocks')
+      expect(r!.treeData).toBeDefined()
     })
   })
 

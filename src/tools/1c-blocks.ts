@@ -8,6 +8,7 @@ import {
   extractEmbeddedJSON,
   splitBlocks,
   blocksToJSON,
+  parseBlocks,
 } from './1c-blocks-utils'
 
 export const blocksTool: ToolDescriptor = {
@@ -24,7 +25,7 @@ export const blocksTool: ToolDescriptor = {
     { label: 'Extract JSON', description: t('tools.1c-blocks.features.Extract JSON.description'), example: 'Pulls out embedded JSON strings' },
     { label: 'Minify', description: t('tools.1c-blocks.features.Minify.description'), example: '{ 1 , 2 } → {1,2}' },
     { label: 'Split blocks', description: t('tools.1c-blocks.features.Split blocks.description'), example: '{1},{2} → separate blocks' },
-    { label: 'Tree view', description: t('tools.1c-blocks.features.Tree view.description'), example: 'Interactive tree' },
+    { label: '1C log tree', description: t('tools.1c-blocks.features.1C log tree.description'), example: 'Interactive tree' },
   ],
   detect: (input: string) => {
     const trimmed = input.trim()
@@ -90,9 +91,7 @@ export const blocksTool: ToolDescriptor = {
       ? parts.map((p, i) => `--- Block ${i + 1} ---\n${p}`).join('\n\n')
       : t('1cBlocks.singleBlock')
 
-    const treeResult = validation.valid
-      ? blocksToJSON(input)
-      : t('1cBlocks.errorPrefix') + t('1cBlocks.error.invalidFormat')
+    const { topLevel: treeAst } = parseBlocks(input)
 
     return [
       { label: 'Validate', value: validateResult },
@@ -102,7 +101,9 @@ export const blocksTool: ToolDescriptor = {
       { label: 'Extract JSON', value: extractResult },
       { label: 'Minify', value: minifyResult },
       { label: 'Split blocks', value: splitResult },
-      { label: 'Tree view', value: treeResult },
+      ...(validation.valid
+        ? [{ label: '1C log tree' as const, value: '', isTree: true as const, treeKey: '1c-log-blocks' as const, treeData: treeAst }]
+        : []),
     ]
   },
   relevance: {

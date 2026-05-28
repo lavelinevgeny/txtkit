@@ -102,6 +102,8 @@
   "tools.1c-blocks.features.Minify.description": "Remove all whitespace to produce compact blocks",
   "tools.1c-blocks.features.Split blocks.description": "Split input into individual top-level blocks",
   "tools.1c-blocks.features.Tree view.description": "Interactive tree view of block structure",
+  "tools.1c-blocks.features.1C log tree.description": "Interactive tree view of 1C log block structure",
+  "tools.json.features.JSON tree.description": "Interactive tree view of JSON structure",
   "1cBlocks.valid": "Valid format",
   "1cBlocks.errorPrefix": "Error: ",
   "1cBlocks.error.invalidFormat": "invalid block format",

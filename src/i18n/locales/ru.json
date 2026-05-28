@@ -102,6 +102,8 @@
   "tools.1c-blocks.features.Minify.description": "Удалить все пробелы для компактного представления",
   "tools.1c-blocks.features.Split blocks.description": "Разбить текст на отдельные блоки верхнего уровня",
   "tools.1c-blocks.features.Tree view.description": "Интерактивное дерево структуры блоков",
+  "tools.1c-blocks.features.1C log tree.description": "Интерактивное дерево структуры блоков лога 1С",
+  "tools.json.features.JSON tree.description": "Интерактивное дерево структуры JSON",
   "1cBlocks.valid": "Валидный формат",
   "1cBlocks.errorPrefix": "Ошибка: ",
   "1cBlocks.error.invalidFormat": "невалидный формат блоков",

@@ -3,6 +3,9 @@ export type Category = 'transform' | 'analysis' | 'encoding' | 'json' | 'dev'
 export interface TransformResult {
   label: string
   value: string
+  isTree?: boolean
+  treeKey?: string
+  treeData?: unknown
 }
 
 export interface DetectionResult {
