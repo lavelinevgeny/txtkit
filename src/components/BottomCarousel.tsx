@@ -21,17 +21,17 @@ export function BottomCarousel() {
   const tools = CAROUSEL_ORDER.map(id => allTools.find(t => t.id === id)!).filter(Boolean)
 
   return (
-    <div className="w-full bg-surface border-t border-border px-2 py-2 sm:px-4 sm:py-2.5">
-      <div className="flex gap-1 sm:gap-1.5 items-center max-w-xl mx-auto overflow-x-auto">
+    <div className="w-full bg-surface border-t border-border px-1.5 py-3 sm:px-4 sm:py-2.5">
+      <div className="flex gap-2 sm:gap-1.5 items-center max-w-xl mx-auto overflow-x-auto">
         <button
           onClick={() => setCatalogOpen(true)}
-          className="flex-shrink-0 bg-accent/10 border border-accent/30 rounded-lg px-2 py-2.5 sm:px-3 sm:py-2 text-center min-w-[60px] sm:min-w-[56px] hover:bg-accent/20 transition-colors"
+          className="flex-shrink-0 bg-accent/10 border border-accent/30 rounded-lg px-2.5 py-3 sm:px-3 sm:py-2 text-center min-w-[76px] sm:min-w-[56px] hover:bg-accent/20 transition-colors"
         >
-          <div className="font-mono font-bold text-accent text-base sm:text-sm">⊞</div>
-          <div className="text-[9px] sm:text-[7px] text-accent font-medium">All</div>
+          <div className="font-mono font-bold text-accent text-xl sm:text-sm">⊞</div>
+          <div className="text-[11px] sm:text-[7px] text-accent font-medium mt-0.5">All</div>
         </button>
 
-        <div className="w-px h-7 sm:h-6 bg-border mx-0.5 sm:mx-1" />
+        <div className="w-px h-9 sm:h-6 bg-border mx-0.5 sm:mx-1" />
 
         {tools.map(tool => {
           const meta = TOOL_META[tool.id]
@@ -40,16 +40,16 @@ export function BottomCarousel() {
             <button
               key={tool.id}
               onClick={() => setActiveToolId(isActive ? null : tool.id)}
-              className={`flex-shrink-0 rounded-lg px-2 py-2.5 sm:px-3 sm:py-2 text-center min-w-[60px] sm:min-w-[56px] transition-colors ${
+              className={`flex-shrink-0 rounded-lg px-2.5 py-3 sm:px-3 sm:py-2 text-center min-w-[76px] sm:min-w-[56px] transition-colors ${
                 isActive
                   ? 'bg-accent/10 border border-accent/30'
                   : 'bg-zinc-800 border border-transparent hover:bg-zinc-700'
               }`}
             >
-              <div className="font-mono font-bold text-base sm:text-sm text-accent">
+              <div className="font-mono font-bold text-xl sm:text-sm text-accent">
                 {meta.icon}
               </div>
-              <div className={`text-[9px] sm:text-[7px] ${isActive ? 'text-accent' : 'text-muted'}`}>
+              <div className={`text-[11px] sm:text-[7px] mt-0.5 ${isActive ? 'text-accent' : 'text-muted'}`}>
                 {meta.label}
               </div>
             </button>

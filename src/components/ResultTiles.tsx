@@ -8,6 +8,15 @@ import { JsonTree } from './JsonTree'
 import { useTranslation } from '../i18n/context'
 
 const INITIAL_LIMIT = 8
+const GROUP_ORDER = ['case', 'transforms', 'stats', 'encode', 'json', '1c-blocks']
+const GROUP_META: Record<string, { icon: string; label: string }> = {
+  case: { icon: 'Aa', label: 'Case' },
+  transforms: { icon: '↻', label: 'Transform' },
+  stats: { icon: '#', label: 'Stats' },
+  encode: { icon: '⇄', label: 'Encode' },
+  json: { icon: '{ }', label: 'JSON' },
+  '1c-blocks': { icon: '{,}', label: '1C' },
+}
 
 export function ResultTiles() {
   const { t } = useTranslation()
@@ -86,11 +95,28 @@ export function ResultTiles() {
     : true
   const showTreeTile = parsedJson !== null && treeMatchesSearch
 
-  if (!input.trim() || (searchedResults.length === 0 && !showTreeTile && !search)) return null
-
   const visibleResults = expanded || activeToolId || search
     ? searchedResults
     : searchedResults.slice(0, INITIAL_LIMIT)
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, typeof visibleResults>()
+    for (const r of visibleResults) {
+      if (!map.has(r.toolId)) map.set(r.toolId, [])
+      map.get(r.toolId)!.push(r)
+    }
+    const ordered: Array<{ toolId: string; results: typeof visibleResults }> = []
+    for (const id of GROUP_ORDER) {
+      const results = map.get(id)
+      if (results) ordered.push({ toolId: id, results })
+    }
+    for (const [id, results] of map) {
+      if (!GROUP_ORDER.includes(id)) ordered.push({ toolId: id, results })
+    }
+    return ordered
+  }, [visibleResults])
+
+  if (!input.trim() || (searchedResults.length === 0 && !showTreeTile && !search)) return null
 
   const hasMore = !activeToolId && !expanded && !search && searchedResults.length > INITIAL_LIMIT
 
@@ -100,6 +126,8 @@ export function ResultTiles() {
 
   const treeTileId = 'json-tree'
   const isTreeExpanded = expandedId === treeTileId
+
+  let globalIndex = 0
 
   return (
     <div className="w-full max-w-xl mx-auto mt-3">
@@ -116,39 +144,55 @@ export function ResultTiles() {
           )}
         </div>
       )}
-      <div className="grid grid-cols-2 gap-1.5">
+      <div className="flex flex-col gap-3">
         {showTreeTile && (
-          isTreeExpanded ? (
-            <div className="bg-surface border border-accent rounded-lg px-3 py-2 col-span-2">
+          <div className="grid grid-cols-2 gap-1.5">
+            {isTreeExpanded ? (
+              <div className="bg-surface border border-accent rounded-lg px-3 py-2 col-span-2">
+                <button
+                  onClick={() => handleToggle(treeTileId)}
+                  className="text-[9px] text-accent font-medium mb-1 hover:text-accent/80"
+                >
+                  Tree
+                </button>
+                <JsonTree data={parsedJson} />
+              </div>
+            ) : (
               <button
                 onClick={() => handleToggle(treeTileId)}
-                className="text-[9px] text-accent font-medium mb-1 hover:text-accent/80"
+                className="bg-surface border border-border rounded-lg px-3 py-2 text-left hover:border-accent/30 transition-all"
               >
-                Tree
+                <div className="text-[9px] text-muted">Tree</div>
+                <div className="font-mono text-xs truncate text-text">{t('tree.description')}</div>
               </button>
-              <JsonTree data={parsedJson} />
-            </div>
-          ) : (
-            <button
-              onClick={() => handleToggle(treeTileId)}
-              className="bg-surface border border-border rounded-lg px-3 py-2 text-left hover:border-accent/30 transition-all"
-            >
-              <div className="text-[9px] text-muted">Tree</div>
-              <div className="font-mono text-xs truncate text-text">{t('tree.description')}</div>
-            </button>
-          )
+            )}
+          </div>
         )}
-        {visibleResults.map((r, i) => {
-          const tileId = `${r.toolId}-${r.result.label}`
+        {grouped.map((group, gi) => {
+          const startIdx = globalIndex
+          globalIndex += group.results.length
           return (
-            <ResultTile
-              key={tileId}
-              result={r.result}
-              accent={i < 4 && !activeToolId}
-              isExpanded={expandedId === tileId}
-              onToggle={() => handleToggle(tileId)}
-              truncationWarning={r.truncationWarning}
-            />
+            <div key={group.toolId}>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <span className="font-mono text-[10px] text-accent">{GROUP_META[group.toolId]?.icon}</span>
+                <span className="text-[10px] text-muted font-medium">{GROUP_META[group.toolId]?.label ?? group.toolId}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {group.results.map((r, ri) => {
+                  const tileId = `${r.toolId}-${r.result.label}`
+                  return (
+                    <ResultTile
+                      key={tileId}
+                      result={r.result}
+                      accent={startIdx + ri < 4 && !activeToolId}
+                      isExpanded={expandedId === tileId}
+                      onToggle={() => handleToggle(tileId)}
+                      truncationWarning={r.truncationWarning}
+                    />
+                  )
+                })}
+              </div>
+            </div>
           )
         })}
       </div>
