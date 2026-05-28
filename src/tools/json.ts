@@ -1,7 +1,7 @@
 import yaml from 'js-yaml'
 import type { ToolDescriptor } from '../types/tool'
 import { t } from '../i18n/translate'
-import { flattenJson, unflattenJson, analyzeStructure } from './json-utils'
+import { flattenJson, unflattenJson, analyzeStructure, lintJson } from './json-utils'
 
 function tryParseJson(input: string): { ok: true; data: unknown } | { ok: false; error: string } {
   try {
@@ -28,6 +28,7 @@ export const jsonTool: ToolDescriptor = {
     { label: 'Structure', description: t('tools.json.features.Structure.description'), example: 'Shows keys, types, nesting depth' },
     { label: 'JSON escape', description: t('tools.json.features.JSON escape.description'), example: 'he"llo → "he\\"llo"' },
     { label: 'JSON unescape', description: t('tools.json.features.JSON unescape.description'), example: '"he\\"llo" → he"llo' },
+    { label: 'Lint', description: t('tools.json.features.Lint.description'), example: 'Shows errors with position and context' },
     { label: 'JSON tree', description: t('tools.json.features.JSON tree.description'), example: 'Interactive tree' },
   ],
   transform: (input: string) => {
@@ -90,6 +91,8 @@ export const jsonTool: ToolDescriptor = {
       }
     })()
 
+    const lintResult = lintJson(trimmed)
+
     return [
       { label: 'Validate', value: validateResult },
       { label: 'Pretty print', value: prettyResult },
@@ -101,6 +104,7 @@ export const jsonTool: ToolDescriptor = {
       { label: 'Structure', value: structureResult },
       { label: 'JSON escape', value: jsonEscapeResult },
       { label: 'JSON unescape', value: jsonUnescapeResult },
+      { label: 'Lint', value: lintResult },
       ...(isJson
         ? [{ label: 'JSON tree' as const, value: '', isTree: true as const, treeKey: 'json' as const, treeData: parsed.data }]
         : []),

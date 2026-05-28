@@ -137,3 +137,228 @@ export function analyzeStructure(data: unknown, depth = 0): StructureAnalysis {
 
   return { keyCount, maxDepth, types: uniqueTypes, arrayCount, totalElements, isArray, report }
 }
+
+interface LintIssue {
+  position: number
+  length: number
+  message: string
+}
+
+function extractV8Position(errorMessage: string, input: string): number | null {
+  const posMatch = errorMessage.match(/position\s+(\d+)/i)
+  if (posMatch) return parseInt(posMatch[1], 10)
+
+  const colMatch = errorMessage.match(/line\s+(\d+)\s+column\s+(\d+)/i)
+  if (colMatch) {
+    const line = parseInt(colMatch[1], 10)
+    const col = parseInt(colMatch[2], 10)
+    let pos = 0
+    let currentLine = 1
+    while (pos < input.length && currentLine < line) {
+      if (input[pos] === '\n') currentLine++
+      pos++
+    }
+    return pos + col - 1
+  }
+
+  const tokenMatch = errorMessage.match(/Unexpected token '(.)'/)
+  if (tokenMatch) {
+    const token = tokenMatch[1]
+    const idx = input.indexOf(token)
+    if (idx >= 0) return idx
+  }
+
+  const endMatch = errorMessage.match(/Unexpected end of JSON input/)
+  if (endMatch) {
+    return input.length
+  }
+
+  return null
+}
+
+function checkBracketBalance(input: string): LintIssue[] {
+  const issues: LintIssue[] = []
+  const stack: Array<{ char: string; pos: number }> = []
+  const pairs: Record<string, string> = { '{': '}', '[': ']' }
+
+  let inString = false
+  let escapeNext = false
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i]
+
+    if (escapeNext) {
+      escapeNext = false
+      continue
+    }
+
+    if (ch === '\\' && inString) {
+      escapeNext = true
+      continue
+    }
+
+    if (ch === '"') {
+      inString = !inString
+      continue
+    }
+
+    if (inString) continue
+
+    if (ch === '{' || ch === '[') {
+      stack.push({ char: ch, pos: i })
+    } else if (ch === '}' || ch === ']') {
+      if (stack.length === 0) {
+        issues.push({
+          position: i,
+          length: 1,
+          message: t('jsonLint.unexpectedBracket', { char: ch }),
+        })
+      } else {
+        const top = stack[stack.length - 1]
+        if (pairs[top.char] !== ch) {
+          issues.push({
+            position: i,
+            length: 1,
+            message: t('jsonLint.mismatchedBracket', { expected: pairs[top.char], found: ch }),
+          })
+        } else {
+          stack.pop()
+        }
+      }
+    }
+  }
+
+  for (const unclosed of stack) {
+    issues.push({
+      position: unclosed.pos,
+      length: 1,
+      message: t('jsonLint.unclosedBracket', { char: unclosed.char }),
+    })
+  }
+
+  return issues
+}
+
+function checkUnicodeEscapes(input: string): LintIssue[] {
+  const issues: LintIssue[] = []
+  const re = /\\u([0-9a-fA-F]{0,3})(?=[^0-9a-fA-F"\\])/g
+  let match: RegExpExecArray | null
+
+  while ((match = re.exec(input)) !== null) {
+    const hexPart = match[1]
+    if (hexPart.length < 4) {
+      issues.push({
+        position: match.index,
+        length: 2 + hexPart.length,
+        message: t('jsonLint.badUnicode', { found: '\\u' + hexPart }),
+      })
+    }
+  }
+
+  const badSlashU = /\\(d[0-9a-fA-F]{2,3})/gi
+  while ((match = badSlashU.exec(input)) !== null) {
+    if (!/\\u[0-9a-fA-F]{4}/.test(input.slice(match.index, match.index + 6))) {
+      issues.push({
+        position: match.index,
+        length: 1 + match[1].length,
+        message: t('jsonLint.badUnicodeChar', { found: '\\' + match[1] }),
+      })
+    }
+  }
+
+  return issues
+}
+
+function checkDoubleEscaping(input: string): LintIssue | null {
+  const trimmed = input.trim()
+  const doubleDoubleQuoteCount = (trimmed.match(/""/g) || []).length
+  if (doubleDoubleQuoteCount >= 3 && trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    return {
+      position: 0,
+      length: Math.min(trimmed.length, 20),
+      message: t('jsonLint.doubleEscaped'),
+    }
+  }
+  const backslashQuoteCount = (trimmed.match(/\\"/g) || []).length
+  if (backslashQuoteCount >= 6) {
+    return {
+      position: 0,
+      length: Math.min(trimmed.length, 20),
+      message: t('jsonLint.doubleEscaped'),
+    }
+  }
+  return null
+}
+
+function buildContextSnippet(input: string, pos: number, len: number): string {
+  const contextRadius = 40
+  const start = Math.max(0, pos - contextRadius)
+  const end = Math.min(input.length, pos + len + contextRadius)
+
+  const prefix = start > 0 ? '...' : ''
+  const suffix = end < input.length ? '...' : ''
+  const snippet = prefix + input.slice(start, end) + suffix
+
+  const pointerOffset = prefix.length + (pos - start)
+  const pointerLen = Math.max(len, 1)
+  const pointer = ' '.repeat(pointerOffset) + '^'.repeat(pointerLen)
+
+  return snippet + '\n' + pointer
+}
+
+export function lintJson(input: string): string {
+  let parseError: string
+  try {
+    JSON.parse(input)
+    return t('jsonLint.valid')
+  } catch (e) {
+    parseError = (e as Error).message
+  }
+
+  const errorMessage = parseError!
+  const parts: string[] = []
+
+  parts.push(t('jsonLint.errorPrefix') + errorMessage)
+
+  const v8Pos = extractV8Position(errorMessage, input)
+  if (v8Pos !== null) {
+    parts.push('')
+    parts.push(buildContextSnippet(input, v8Pos, 1))
+    parts.push(t('jsonLint.position', { pos: v8Pos }))
+  }
+
+  const unicodeIssues = checkUnicodeEscapes(input)
+  if (unicodeIssues.length > 0) {
+    parts.push('')
+    parts.push(t('jsonLint.unicodeIssues'))
+    for (const issue of unicodeIssues.slice(0, 5)) {
+      parts.push('  ' + issue.message)
+      parts.push('  ' + buildContextSnippet(input, issue.position, issue.length))
+    }
+    if (unicodeIssues.length > 5) {
+      parts.push(t('jsonLint.moreIssues', { n: unicodeIssues.length - 5 }))
+    }
+  }
+
+  const doubleEscape = checkDoubleEscaping(input)
+  if (doubleEscape) {
+    parts.push('')
+    parts.push(t('jsonLint.hint') + ' ' + doubleEscape.message)
+  }
+
+  if (v8Pos === null && unicodeIssues.length === 0) {
+    const bracketIssues = checkBracketBalance(input)
+    if (bracketIssues.length > 0) {
+      parts.push('')
+      parts.push(t('jsonLint.bracketIssues'))
+      for (const issue of bracketIssues) {
+        parts.push('  ' + issue.message)
+        if (issue.position < input.length) {
+          parts.push('  ' + buildContextSnippet(input, issue.position, issue.length))
+        }
+      }
+    }
+  }
+
+  return parts.join('\n')
+}

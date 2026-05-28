@@ -119,6 +119,6 @@ describe('jsonTool', () => {
 
   it('returns expected number of results for valid JSON', () => {
     const results = jsonTool.transform('{"a":1}')
-    expect(results.length).toBe(11)
+    expect(results.length).toBe(12)
   })
 })
