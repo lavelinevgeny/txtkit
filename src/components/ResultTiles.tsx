@@ -34,7 +34,7 @@ interface GroupedResult {
 }
 
 export function ResultTiles() {
-  const { t } = useTranslation()
+  const { t, locale } = useTranslation()
   const input = useStore(s => s.input)
   const activeToolId = useStore(s => s.activeToolId)
   const [expanded, setExpanded] = useState(false)
@@ -84,7 +84,8 @@ export function ResultTiles() {
     }
 
     return results
-  }, [input, activeToolId, t])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input, activeToolId, t, locale])
 
   const filteredResults = allResults
 

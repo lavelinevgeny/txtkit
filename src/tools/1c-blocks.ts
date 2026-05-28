@@ -9,6 +9,7 @@ import {
   splitBlocks,
   blocksToJSON,
   parseBlocks,
+  logFieldsList,
 } from './1c-blocks-utils'
 
 export const blocksTool: ToolDescriptor = {
@@ -26,6 +27,7 @@ export const blocksTool: ToolDescriptor = {
     { label: 'Minify', description: t('tools.1c-blocks.features.Minify.description'), example: '{ 1 , 2 } → {1,2}' },
     { label: 'Split blocks', description: t('tools.1c-blocks.features.Split blocks.description'), example: '{1},{2} → separate blocks' },
     { label: '1C log tree', description: t('tools.1c-blocks.features.1C log tree.description'), example: 'Interactive tree' },
+    { label: 'Log fields', description: t('tools.1c-blocks.features.Log fields.description'), example: 'Named field list' },
   ],
   detect: (input: string) => {
     const trimmed = input.trim()
@@ -91,7 +93,14 @@ export const blocksTool: ToolDescriptor = {
       ? parts.map((p, i) => `--- Block ${i + 1} ---\n${p}`).join('\n\n')
       : t('1cBlocks.singleBlock')
 
-    const { topLevel: treeAst } = parseBlocks(input)
+    const { topLevel } = parseBlocks(input)
+    const treeAst = topLevel
+
+    const fieldNames = Array.from({ length: 19 }, (_, i) => t(`1cBlocks.field.${i}`))
+
+    const logFieldsResult = validation.valid && topLevel.length > 0
+      ? logFieldsList(input, fieldNames, t('1cBlocks.unknownField'), t('1cBlocks.lgfHeader'))
+      : ''
 
     return [
       { label: 'Validate', value: validateResult },
@@ -103,6 +112,9 @@ export const blocksTool: ToolDescriptor = {
       { label: 'Split blocks', value: splitResult },
       ...(validation.valid
         ? [{ label: '1C log tree' as const, value: '', isTree: true as const, treeKey: '1c-log-blocks' as const, treeData: treeAst }]
+        : []),
+      ...(logFieldsResult
+        ? [{ label: 'Log fields' as const, value: logFieldsResult }]
         : []),
     ]
   },

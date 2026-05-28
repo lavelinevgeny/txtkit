@@ -267,6 +267,48 @@ export function splitBlocks(input: string): string[] {
   return topLevel.map(b => formatNode(b))
 }
 
+const LOG_FIELD_NAMES_COUNT = 19
+
+const LGF_REF_INDICES = new Set([3, 4, 5, 7, 10, 13, 14, 15])
+
+function formatNodeRaw(node: BlockChild): string {
+  if (node.type === 'block') {
+    return '{' + node.children.map(c => formatNodeRaw(c)).join(',') + '}'
+  }
+  if (node.type === 'string') return '"' + node.value.replace(/"/g, '""') + '"'
+  return node.value
+}
+
+export function logFieldsList(input: string, fieldNames: string[], unknownLabel: string, headerComment: string): string {
+  const { topLevel } = parseBlocks(input)
+  if (topLevel.length === 0) return ''
+
+  const block = topLevel[0]
+  const lines: string[] = [headerComment, '']
+
+  const maxNum = String(block.children.length).length
+  const maxName = block.children.reduce((max, _child, i) => {
+    const baseName = i < LOG_FIELD_NAMES_COUNT
+      ? fieldNames[i]
+      : `${unknownLabel} ${i + 1}`
+    const name = LGF_REF_INDICES.has(i) ? baseName + '*' : baseName
+    return Math.max(max, name.length)
+  }, 0)
+
+  for (let i = 0; i < block.children.length; i++) {
+    const child = block.children[i]
+    const num = String(i + 1).padStart(maxNum)
+    const baseName = i < LOG_FIELD_NAMES_COUNT
+      ? fieldNames[i]
+      : `${unknownLabel} ${i + 1}`
+    const name = (LGF_REF_INDICES.has(i) ? baseName + '*' : baseName).padEnd(maxName)
+    const value = formatNodeRaw(child)
+    lines.push(`${num}  ${name}  ${value}`)
+  }
+
+  return lines.join('\n')
+}
+
 export function blocksToJSON(input: string): string {
   const { topLevel } = parseBlocks(input)
 

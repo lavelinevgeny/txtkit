@@ -17,9 +17,9 @@ describe('blocksTool', () => {
 {0}
 }`
 
-  it('returns 8 transform results', () => {
+  it('returns 9 transform results', () => {
     const results = blocksTool.transform(sampleInput)
-    expect(results.length).toBe(8)
+    expect(results.length).toBe(9)
   })
 
   describe('Validate', () => {
@@ -101,6 +101,26 @@ describe('blocksTool', () => {
       expect(r!.isTree).toBe(true)
       expect(r!.treeKey).toBe('1c-log-blocks')
       expect(r!.treeData).toBeDefined()
+    })
+  })
+
+  describe('Log fields', () => {
+    it('returns named fields list for valid log', () => {
+      const results = blocksTool.transform(sampleInput)
+      const r = results.find(r => r.label === 'Log fields')
+      expect(r).toBeDefined()
+      expect(r!.value).toContain('DateTime')
+      expect(r!.value).toContain('20260416130000')
+      expect(r!.value).toContain('TransactionStatus')
+      expect(r!.value).toContain('UserID*')
+      expect(r!.value).toContain('EventID*')
+      expect(r!.value).toContain('1Cv8.lgf')
+    })
+
+    it('omits Log fields for invalid input', () => {
+      const results = blocksTool.transform('{1,{2}')
+      const r = results.find(r => r.label === 'Log fields')
+      expect(r).toBeUndefined()
     })
   })
 
