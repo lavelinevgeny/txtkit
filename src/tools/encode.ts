@@ -39,4 +39,9 @@ export const encodeTool: ToolDescriptor = {
       { label: 'Unescape quotes (""', value: (() => { const txt = input.trim(); return txt.startsWith('"') && txt.endsWith('"') ? txt.slice(1, -1).replace(/""/g, '"') : t('encode.error.notQuoted') })() },
     ]
   },
+  relevance: {
+    base64: { tool: 1.0, transforms: { 'Base64 decode': 2.0, 'Base64 encode': 0.5 } },
+    'url-encoded': { tool: 1.0, transforms: { 'URL decode': 2.0, 'URL encode': 0.5 } },
+    'html-entities': { tool: 0.9, transforms: { 'HTML unescape': 2.0, 'HTML escape': 0.5 } },
+  },
 }

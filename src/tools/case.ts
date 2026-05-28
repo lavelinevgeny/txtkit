@@ -142,4 +142,17 @@ export const caseTool: ToolDescriptor = {
     }
     return results
   },
+  relevance: {
+    camelCase: { tool: 1.0, transforms: { 'snake_case': 2.0, 'kebab-case': 1.5, 'PascalCase': 1.0 } },
+    PascalCase: { tool: 1.0, transforms: { 'camelCase': 2.0, 'snake_case': 1.5 } },
+    snake_case: { tool: 1.0, transforms: { 'camelCase': 2.0, 'PascalCase': 1.5, 'kebab-case': 1.0 } },
+    'kebab-case': { tool: 1.0, transforms: { 'camelCase': 2.0, 'snake_case': 1.5 } },
+    'single-word': { tool: 0.3 },
+    'multi-word': { tool: 0.3 },
+  },
+  scope: {
+    maxLength: 200,
+    singleLine: true,
+    truncate: { maxLength: 200 },
+  },
 }

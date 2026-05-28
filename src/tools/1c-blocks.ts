@@ -105,4 +105,10 @@ export const blocksTool: ToolDescriptor = {
       { label: 'Tree view', value: treeResult },
     ]
   },
+  relevance: {
+    '1c-blocks': { tool: 1.0 },
+  },
+  scope: {
+    multiLine: true,
+  },
 }

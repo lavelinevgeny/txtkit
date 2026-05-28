@@ -102,4 +102,8 @@ export const jsonTool: ToolDescriptor = {
       { label: 'JSON unescape', value: jsonUnescapeResult },
     ]
   },
+  relevance: {
+    json: { tool: 1.0, transforms: { 'Pretty print': 2.0, 'Minify': 1.5, 'Validate': 1.5 } },
+    yaml: { tool: 0.8, transforms: { 'YAML → JSON': 2.0 } },
+  },
 }

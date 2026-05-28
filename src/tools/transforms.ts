@@ -82,4 +82,7 @@ export const transformsTool: ToolDescriptor = {
       },
     ]
   },
+  relevance: {
+    'multi-word': { tool: 0.3, transforms: { 'Slugify': 1.5, 'Remove duplicates': 1.5, 'Sort lines': 1.5 } },
+  },
 }
