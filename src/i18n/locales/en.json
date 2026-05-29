@@ -1,7 +1,7 @@
 {
   "errorBoundary.retry": "Try again",
   "smartInput.placeholder": "Paste or type text...",
-  "smartInput.lengthWarning": "Text trimmed to {max} characters",
+  "smartInput.lengthWarning": "Input is limited to {max}",
   "resultTile.copy": "Copy",
   "resultTile.copied": "✓ Copied",
   "resultTiles.showAll": "Show all ({count})",

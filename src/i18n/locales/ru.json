@@ -1,7 +1,7 @@
 {
   "errorBoundary.retry": "Попробовать снова",
   "smartInput.placeholder": "Вставьте или введите текст...",
-  "smartInput.lengthWarning": "Текст обрезан до {max} символов",
+  "smartInput.lengthWarning": "Лимит ввода: {max}",
   "resultTile.copy": "Скопировать",
   "resultTile.copied": "✓ Скопировано",
   "resultTiles.showAll": "Показать все ({count})",

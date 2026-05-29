@@ -1,8 +1,7 @@
 import { useRef, useEffect } from 'react'
 import { useStore } from '../store/useStore'
 import { useTranslation } from '../i18n/context'
-
-const MAX_INPUT_LENGTH = 5000
+import { MAX_INPUT_BYTES, MAX_INPUT_SIZE_LABEL, getUtf8ByteLength, truncateUtf8ByBytes } from '../utils/text-limit'
 
 export function SmartInput() {
   const { t } = useTranslation()
@@ -22,20 +21,31 @@ export function SmartInput() {
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value
-    if (value.length <= MAX_INPUT_LENGTH) {
-      setInput(value)
+    const truncatedValue = truncateUtf8ByBytes(value, MAX_INPUT_BYTES)
+    if (truncatedValue !== input) {
+      setInput(truncatedValue)
     }
   }
 
   const handlePaste = (e: React.ClipboardEvent) => {
     const pasted = e.clipboardData.getData('text')
-    if (pasted.length > MAX_INPUT_LENGTH) {
+    const el = textareaRef.current
+    if (!el) {
+      return
+    }
+
+    const nextValue = input.slice(0, el.selectionStart) + pasted + input.slice(el.selectionEnd)
+    const truncatedValue = truncateUtf8ByBytes(nextValue, MAX_INPUT_BYTES)
+
+    if (truncatedValue !== nextValue) {
       e.preventDefault()
-      setInput(pasted.slice(0, MAX_INPUT_LENGTH))
+      if (truncatedValue !== input) {
+        setInput(truncatedValue)
+      }
     }
   }
 
-  const showWarning = input.length > MAX_INPUT_LENGTH * 0.9
+  const showWarning = getUtf8ByteLength(input) > MAX_INPUT_BYTES * 0.9
 
   return (
     <div className="w-full max-w-xl mx-auto">
@@ -62,7 +72,7 @@ export function SmartInput() {
       </div>
       {showWarning && input && (
         <p className="text-xs text-amber-500 mt-1">
-          {t('smartInput.lengthWarning', { max: MAX_INPUT_LENGTH })}
+          {t('smartInput.lengthWarning', { max: MAX_INPUT_SIZE_LABEL })}
         </p>
       )}
     </div>
