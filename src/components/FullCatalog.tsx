@@ -3,13 +3,14 @@ import { useStore } from '../store/useStore'
 import { getAllTools, getToolById } from '../tools/registry'
 import { useTranslation } from '../i18n/context'
 
-const TOOL_ORDER = ['case', 'transforms', 'stats', 'encode', 'json', '1c-blocks']
+const TOOL_ORDER = ['case', 'transforms', 'stats', 'encode', 'json', 'yaml', '1c-blocks']
 
 const CATEGORY_COLORS: Record<string, string> = {
   transform: 'rgba(232,160,48,0.1)',
   analysis: 'rgba(52,211,153,0.1)',
   encoding: 'rgba(96,165,250,0.1)',
   json: 'rgba(192,132,252,0.1)',
+  yaml: 'rgba(20,184,166,0.1)',
   dev: 'rgba(113,113,122,0.1)',
 }
 
@@ -18,6 +19,7 @@ const CATEGORY_TEXT: Record<string, string> = {
   analysis: 'text-success',
   encoding: 'text-info',
   json: 'text-purple-400',
+  yaml: 'text-teal-400',
   dev: 'text-muted',
 }
 

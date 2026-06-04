@@ -4,9 +4,10 @@ import { statsTool } from './stats'
 import { transformsTool } from './transforms'
 import { encodeTool } from './encode'
 import { jsonTool } from './json'
+import { yamlTool } from './yaml'
 import { blocksTool } from './1c-blocks'
 
-const tools: ToolDescriptor[] = [jsonTool, caseTool, transformsTool, statsTool, encodeTool, blocksTool]
+const tools: ToolDescriptor[] = [jsonTool, yamlTool, caseTool, transformsTool, statsTool, encodeTool, blocksTool]
 
 export function getAllTools(): ToolDescriptor[] {
   return tools

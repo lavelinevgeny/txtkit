@@ -12,17 +12,19 @@ import { useTranslation } from '../i18n/context'
 
 const TREE_RENDERERS: Record<string, ComponentType<{ data: unknown }>> = {
   'json': JsonTree,
+  'yaml': JsonTree,
   '1c-log-blocks': BlockTree,
 }
 
 const INITIAL_LIMIT = 8
-const GROUP_ORDER = ['case', 'transforms', 'stats', 'encode', 'json', '1c-blocks']
+const GROUP_ORDER = ['case', 'transforms', 'stats', 'encode', 'json', 'yaml', '1c-blocks']
 const GROUP_META: Record<string, { icon: string; label: string }> = {
   case: { icon: 'Aa', label: 'Case' },
   transforms: { icon: '↻', label: 'Transform' },
   stats: { icon: '#', label: 'Stats' },
   encode: { icon: '⇄', label: 'Encode' },
   json: { icon: '{ }', label: 'JSON' },
+  yaml: { icon: 'Y:', label: 'YAML' },
   '1c-blocks': { icon: '{,}', label: '1C' },
 }
 

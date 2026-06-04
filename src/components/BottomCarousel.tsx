@@ -1,7 +1,7 @@
 import { useStore } from '../store/useStore'
 import { getAllTools } from '../tools/registry'
 
-const CAROUSEL_ORDER = ['case', 'transforms', 'stats', 'encode', 'json', '1c-blocks']
+const CAROUSEL_ORDER = ['case', 'transforms', 'stats', 'encode', 'json', 'yaml', '1c-blocks']
 
 const TOOL_META: Record<string, { icon: string; label: string }> = {
   case: { icon: 'Aa', label: 'Case' },
@@ -9,6 +9,7 @@ const TOOL_META: Record<string, { icon: string; label: string }> = {
   stats: { icon: '#', label: 'Stats' },
   encode: { icon: '⇄', label: 'Encode' },
   json: { icon: '{ }', label: 'JSON' },
+  yaml: { icon: 'Y:', label: 'YAML' },
   '1c-blocks': { icon: '{,}', label: '1C' },
 }
 
