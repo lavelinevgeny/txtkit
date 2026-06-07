@@ -3,6 +3,7 @@ import { t } from '../i18n/translate'
 import { pluralRu } from '../i18n/plural'
 import { useStore } from '../store/useStore'
 import { blocksTool } from './1c-blocks'
+import { hasListMarker } from './list-converter'
 
 const detectors: Array<{
   type: string
@@ -55,6 +56,17 @@ const detectors: Array<{
     label: '1C Blocks',
     detect: (input) => {
       return blocksTool.detect!(input)
+    },
+  },
+  {
+    type: 'list',
+    label: 'List',
+    detect: (input) => {
+      const lines = input.split('\n').filter(line => line.trim())
+      if (lines.length < 2) return null
+      const markedCount = lines.filter(hasListMarker).length
+      if (markedCount < 2 || markedCount / lines.length < 0.5) return null
+      return { type: 'list', label: 'List', confidence: 0.85 }
     },
   },
   {

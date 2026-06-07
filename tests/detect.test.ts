@@ -112,4 +112,19 @@ describe('detectInputTypes', () => {
     const blocks = results.find(r => r.type === '1c-blocks')
     expect(blocks).toBeUndefined()
   })
+
+  it('detects a list when at least half of non-empty lines are marked', () => {
+    const results = detectInputTypes('1. First\nSecond continuation\n- Third\nFourth')
+    expect(results.find(r => r.type === 'list')).toBeDefined()
+  })
+
+  it('does not detect an ordinary multiline text as a list', () => {
+    const results = detectInputTypes('First line\nSecond line\nThird line')
+    expect(results.find(r => r.type === 'list')).toBeUndefined()
+  })
+
+  it('does not detect a single marked line as a list', () => {
+    const results = detectInputTypes('- First\nSecond\nThird')
+    expect(results.find(r => r.type === 'list')).toBeUndefined()
+  })
 })
