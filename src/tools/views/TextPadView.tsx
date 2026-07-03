@@ -4,7 +4,16 @@ import { EditorView, lineNumbers, highlightSpecialChars, drawSelection, keymap }
 import { Compartment, EditorState } from '@codemirror/state'
 import { history, defaultKeymap, historyKeymap } from '@codemirror/commands'
 import { indentOnInput } from '@codemirror/language'
-import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
+import {
+  search,
+  SearchQuery,
+  setSearchQuery as cmSetSearchQuery,
+  findNext as cmFindNext,
+  findPrevious as cmFindPrevious,
+  replaceNext as cmReplaceNext,
+  replaceAll as cmReplaceAll,
+  highlightSelectionMatches,
+} from '@codemirror/search'
 import { useStore } from '../../store/useStore'
 import { useTranslation } from '../../i18n/context'
 import { copyToClipboard } from '../../utils/clipboard'
@@ -117,6 +126,13 @@ export function TextPadView() {
   const goToLineOpenRef = useRef<() => void>(() => {})
   const goToLineInputRef = useRef<HTMLInputElement>(null)
 
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [replaceText, setReplaceText] = useState('')
+  const [caseSensitive, setCaseSensitive] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const searchOpenRef = useRef<() => void>(() => {})
+
   const stats = useMemo(() => getTextPadStats(editorDoc), [editorDoc])
 
   useEffect(() => {
@@ -152,6 +168,7 @@ export function TextPadView() {
         indentOnInput(),
         history(),
         highlightSelectionMatches(),
+        search(),
         wrappingCompartment.of(editorPrefs.lineWrapping ? EditorView.lineWrapping : []),
         keymap.of([...defaultKeymap, ...historyKeymap, {
           key: 'Mod-Alt-g',
@@ -160,7 +177,14 @@ export function TextPadView() {
             return true
           },
           preventDefault: true,
-        }, ...searchKeymap]),
+        }, {
+          key: 'Mod-f',
+          run: () => {
+            searchOpenRef.current()
+            return true
+          },
+          preventDefault: true,
+        }]),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
             setEditorDoc(update.state.doc.toString())
@@ -200,10 +224,34 @@ export function TextPadView() {
       setGoToLineValue(String(line.number))
       setGoToLineTotal(view.state.doc.lines)
       setGoToLineError('')
+      setSearchOpen(false)
       setGoToLineOpen(true)
       setTimeout(() => goToLineInputRef.current?.focus(), 0)
     }
   })
+
+  useEffect(() => {
+    searchOpenRef.current = () => {
+      const view = viewRef.current
+      if (!view) return
+      const { from, to } = view.state.selection.main
+      const selected = from !== to ? view.state.sliceDoc(from, to) : ''
+      if (selected.length > 0 && selected.length < 200) {
+        setSearchTerm(selected)
+      }
+      setGoToLineOpen(false)
+      setSearchOpen(true)
+      setTimeout(() => searchInputRef.current?.focus(), 0)
+    }
+  })
+
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view || !searchOpen) return
+    view.dispatch({
+      effects: cmSetSearchQuery.of(new SearchQuery({ search: searchTerm, replace: replaceText, caseSensitive })),
+    })
+  }, [searchTerm, replaceText, caseSensitive, searchOpen])
 
   const handleCopy = () => {
     void copyToClipboard(viewRef.current?.state.doc.toString() ?? '')
@@ -313,6 +361,35 @@ export function TextPadView() {
     setGoToLineOpen(false)
     view.focus()
   }, [goToLineValue, t])
+
+  const handleSearchClose = useCallback(() => {
+    setSearchOpen(false)
+    const view = viewRef.current
+    if (view) {
+      view.dispatch({ effects: cmSetSearchQuery.of(new SearchQuery({ search: '' })) })
+      view.focus()
+    }
+  }, [])
+
+  const handleFindNext = useCallback(() => {
+    const view = viewRef.current
+    if (view) cmFindNext(view)
+  }, [])
+
+  const handleFindPrev = useCallback(() => {
+    const view = viewRef.current
+    if (view) cmFindPrevious(view)
+  }, [])
+
+  const handleReplaceNext = useCallback(() => {
+    const view = viewRef.current
+    if (view) cmReplaceNext(view)
+  }, [])
+
+  const handleReplaceAll = useCallback(() => {
+    const view = viewRef.current
+    if (view) cmReplaceAll(view)
+  }, [])
 
   const handleUploadClick = () => {
     fileInputRef.current?.click()
@@ -510,6 +587,65 @@ export function TextPadView() {
           >
             {t('textPad.autosave.dismiss')}
           </button>
+        </div>
+      )}
+
+      {searchOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-[15vh]"
+          onClick={handleSearchClose}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="flex flex-col gap-3 rounded-xl border border-border bg-surface-dim p-4 shadow-2xl"
+          >
+            <span className="text-xs font-semibold text-text">{t('textPad.search.title')}</span>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.shiftKey ? handleFindPrev() : handleFindNext()
+                    if (e.key === 'Escape') handleSearchClose()
+                  }}
+                  placeholder={t('textPad.search.findPlaceholder')}
+                  className="h-9 w-56 rounded-lg border border-border bg-surface px-3 text-sm font-mono text-text outline-none placeholder:text-muted/50 focus:border-accent/50"
+                />
+                <button
+                  onClick={() => setCaseSensitive((v) => !v)}
+                  className={caseSensitive ? buttonActive : buttonIdle}
+                  title={t('textPad.search.caseSensitive')}
+                >
+                  Aa
+                </button>
+              </div>
+              <input
+                type="text"
+                value={replaceText}
+                onChange={(e) => setReplaceText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleReplaceNext()
+                  if (e.key === 'Escape') handleSearchClose()
+                }}
+                placeholder={t('textPad.search.replacePlaceholder')}
+                className="h-9 w-[calc(14rem+2.25rem+0.5rem)] rounded-lg border border-border bg-surface px-3 text-sm font-mono text-text outline-none placeholder:text-muted/50 focus:border-accent/50"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <button onClick={handleFindPrev} className={buttonIdle}>{t('textPad.search.prev')}</button>
+                <button onClick={handleFindNext} className={buttonIdle}>{t('textPad.search.next')}</button>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button onClick={handleReplaceNext} className={buttonIdle}>{t('textPad.search.replace')}</button>
+                <button onClick={handleReplaceAll} className={buttonIdle}>{t('textPad.search.replaceAll')}</button>
+                <button onClick={handleSearchClose} className={buttonIdle}>{t('textPad.search.close')}</button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

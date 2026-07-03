@@ -13,8 +13,11 @@ class MockResizeObserver {
 
 function openGoToLineDialog(container: HTMLElement) {
   const editor = container.querySelector('.cm-editor')
+  const content = container.querySelector('.cm-content')
   expect(editor).toBeInstanceOf(HTMLElement)
-  fireEvent.keyDown(editor as HTMLElement, { key: 'g', ctrlKey: true, altKey: true })
+  expect(content).toBeInstanceOf(HTMLElement)
+  ;(content as HTMLElement).focus()
+  fireEvent.keyDown(content as HTMLElement, { key: 'g', ctrlKey: true, altKey: true })
   return editor as HTMLElement
 }
 
@@ -55,11 +58,11 @@ describe('TextPadView', () => {
 
     expect(screen.queryByText('Remove empty lines')).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Operations' }))
+    fireEvent.click(screen.getByRole('button', { name: /Operations/ }))
 
     expect(screen.getByText('Remove empty lines')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Operations' }))
+    fireEvent.click(screen.getByRole('button', { name: /Operations/ }))
 
     expect(screen.queryByText('Remove empty lines')).toBeNull()
   })
