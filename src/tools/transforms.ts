@@ -1,5 +1,6 @@
 import type { ToolDescriptor } from '../types/tool'
 import { t } from '../i18n/translate'
+import { removeDuplicateLines, sortLines } from '../utils/text-ops'
 
 const MORSE_MAP: Record<string, string> = {
   'A': '.-', 'B': '-...', 'C': '-.-.', 'D': '-..', 'E': '.', 'F': '..-.',
@@ -59,11 +60,11 @@ export const transformsTool: ToolDescriptor = {
       },
       {
         label: 'Remove duplicates',
-        value: [...new Set(input.split('\n'))].join('\n'),
+        value: removeDuplicateLines(input),
       },
       {
         label: 'Sort lines',
-        value: input.split('\n').sort((a, b) => a.localeCompare(b)).join('\n'),
+        value: sortLines(input),
       },
       {
         label: 'Leet speak',
