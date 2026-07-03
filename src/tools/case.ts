@@ -1,5 +1,6 @@
 import type { ToolDescriptor } from '../types/tool'
 import { t } from '../i18n/translate'
+import { toLowerCase, toUpperCase, toSentenceCase, toTitleCase } from '../utils/text-case-ops'
 
 function splitWords(input: string): string[] {
   const cleaned = input.replace(/[^\p{L}\p{N}\s_\-./]/gu, '')
@@ -37,18 +38,15 @@ const formats: Array<{ label: string; convert: (words: string[], original: strin
   },
   {
     label: 'lower',
-    convert: (words) => words.join(' '),
+    convert: (words) => toLowerCase(words.join(' ')),
   },
   {
     label: 'Title Case',
-    convert: (words) => words.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+    convert: (words) => toTitleCase(words.join(' ')),
   },
   {
     label: 'Sentence case',
-    convert: (words) => {
-      const all = words.join(' ')
-      return all.charAt(0).toUpperCase() + all.slice(1)
-    },
+    convert: (words) => toSentenceCase(words.join(' ')),
   },
   {
     label: 'dot.case',
@@ -64,7 +62,7 @@ const formats: Array<{ label: string; convert: (words: string[], original: strin
   },
   {
     label: 'UPPER',
-    convert: (words) => words.map(w => w.toUpperCase()).join(' '),
+    convert: (words) => toUpperCase(words.join(' ')),
   },
   {
     label: 'Alternating',

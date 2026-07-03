@@ -16,6 +16,7 @@ import {
   shuffleLines,
   addPrefixSuffix,
 } from '../../utils/text-ops'
+import { toLowerCase, toUpperCase, toSentenceCase, toTitleCase } from '../../utils/text-case-ops'
 import { getTextPadStats } from './textPadStats'
 import { downloadTextFile } from './textPadFile'
 
@@ -102,7 +103,7 @@ export function TextPadView() {
     })
   }
 
-  const handleQuickOp = (op: 'removeEmptyLines' | 'removeDuplicateLines' | 'sortLines' | 'trimLines' | 'shuffleLines') => {
+  const handleQuickOp = (op: 'removeEmptyLines' | 'removeDuplicateLines' | 'sortLines' | 'trimLines' | 'shuffleLines' | 'toLowerCase' | 'toUpperCase' | 'sentenceCase' | 'titleCase') => {
     const current = viewRef.current?.state.doc.toString() ?? ''
     const userEvent = `input.textPad.${op}`
     switch (op) {
@@ -120,6 +121,18 @@ export function TextPadView() {
         break
       case 'shuffleLines':
         replaceWholeDoc(shuffleLines(current), userEvent)
+        break
+      case 'toLowerCase':
+        replaceWholeDoc(toLowerCase(current), userEvent)
+        break
+      case 'toUpperCase':
+        replaceWholeDoc(toUpperCase(current), userEvent)
+        break
+      case 'sentenceCase':
+        replaceWholeDoc(toSentenceCase(current), userEvent)
+        break
+      case 'titleCase':
+        replaceWholeDoc(toTitleCase(current), userEvent)
         break
     }
   }
@@ -266,6 +279,31 @@ export function TextPadView() {
           className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
         >
           {t('textPad.ops.shuffleLines')}
+        </button>
+        <span className="w-px h-4 bg-zinc-700" />
+        <button
+          onClick={() => handleQuickOp('toLowerCase')}
+          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
+        >
+          {t('textPad.ops.toLowerCase')}
+        </button>
+        <button
+          onClick={() => handleQuickOp('toUpperCase')}
+          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
+        >
+          {t('textPad.ops.toUpperCase')}
+        </button>
+        <button
+          onClick={() => handleQuickOp('sentenceCase')}
+          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
+        >
+          {t('textPad.ops.sentenceCase')}
+        </button>
+        <button
+          onClick={() => handleQuickOp('titleCase')}
+          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
+        >
+          {t('textPad.ops.titleCase')}
         </button>
         <span className="w-px h-4 bg-zinc-700" />
         <input
