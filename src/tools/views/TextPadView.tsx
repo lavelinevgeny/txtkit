@@ -8,6 +8,13 @@ import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { useStore } from '../../store/useStore'
 import { useTranslation } from '../../i18n/context'
 import { copyToClipboard } from '../../utils/clipboard'
+import {
+  removeEmptyLines,
+  removeDuplicateLines,
+  sortLines,
+  trimLines,
+  shuffleLines,
+} from '../../utils/text-ops'
 import { getTextPadStats } from './textPadStats'
 import { downloadTextFile } from './textPadFile'
 
@@ -81,6 +88,37 @@ export function TextPadView() {
 
   const handleCopy = () => {
     void copyToClipboard(viewRef.current?.state.doc.toString() ?? '')
+  }
+
+  const replaceWholeDoc = (next: string, userEvent: string) => {
+    const view = viewRef.current
+    if (!view) return
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: next },
+      userEvent,
+    })
+  }
+
+  const handleQuickOp = (op: 'removeEmptyLines' | 'removeDuplicateLines' | 'sortLines' | 'trimLines' | 'shuffleLines') => {
+    const current = viewRef.current?.state.doc.toString() ?? ''
+    const userEvent = `input.textPad.${op}`
+    switch (op) {
+      case 'removeEmptyLines':
+        replaceWholeDoc(removeEmptyLines(current), userEvent)
+        break
+      case 'removeDuplicateLines':
+        replaceWholeDoc(removeDuplicateLines(current), userEvent)
+        break
+      case 'sortLines':
+        replaceWholeDoc(sortLines(current), userEvent)
+        break
+      case 'trimLines':
+        replaceWholeDoc(trimLines(current), userEvent)
+        break
+      case 'shuffleLines':
+        replaceWholeDoc(shuffleLines(current), userEvent)
+        break
+    }
   }
 
   const handleClear = () => {
@@ -188,6 +226,39 @@ export function TextPadView() {
         onChange={handleFileChange}
         className="hidden"
       />
+
+      <div className="flex flex-wrap items-center gap-1.5 px-3 py-1.5 bg-surface border border-border rounded-lg">
+        <button
+          onClick={() => handleQuickOp('removeEmptyLines')}
+          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
+        >
+          {t('textPad.ops.removeEmptyLines')}
+        </button>
+        <button
+          onClick={() => handleQuickOp('removeDuplicateLines')}
+          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
+        >
+          {t('textPad.ops.removeDuplicateLines')}
+        </button>
+        <button
+          onClick={() => handleQuickOp('sortLines')}
+          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
+        >
+          {t('textPad.ops.sortLines')}
+        </button>
+        <button
+          onClick={() => handleQuickOp('trimLines')}
+          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
+        >
+          {t('textPad.ops.trimLines')}
+        </button>
+        <button
+          onClick={() => handleQuickOp('shuffleLines')}
+          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
+        >
+          {t('textPad.ops.shuffleLines')}
+        </button>
+      </div>
 
       <p className="text-xs text-muted/70 px-1">{t('textPad.hint.empty')}</p>
 
