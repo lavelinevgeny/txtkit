@@ -7,8 +7,9 @@ import { jsonTool } from './json'
 import { yamlTool } from './yaml'
 import { blocksTool } from './1c-blocks'
 import { listConverterTool } from './list-converter'
+import { textPadTool } from './text-pad'
 
-const tools: ToolDescriptor[] = [jsonTool, yamlTool, listConverterTool, caseTool, transformsTool, statsTool, encodeTool, blocksTool]
+const tools: ToolDescriptor[] = [jsonTool, yamlTool, listConverterTool, caseTool, transformsTool, statsTool, encodeTool, blocksTool, textPadTool]
 
 export function getAllTools(): ToolDescriptor[] {
   return tools
