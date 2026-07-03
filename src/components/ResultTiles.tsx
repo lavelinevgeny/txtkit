@@ -63,6 +63,7 @@ export function ResultTiles() {
 
     for (const { tool } of scoredTools) {
       if (isManual && activeToolId !== tool.id) continue
+      if (tool.view === 'custom') continue
 
       const truncationWarning = tool.scope?.truncate && input.length > tool.scope.truncate.maxLength
         ? t('warnings.inputTruncated', {

@@ -33,7 +33,7 @@ export interface ToolScope {
   }
 }
 
-export interface ToolDescriptor {
+interface BaseToolDescriptor {
   id: string
   name: string
   icon: string
@@ -41,7 +41,18 @@ export interface ToolDescriptor {
   description: string
   features?: { label: string; description: string; example: string }[]
   detect?: (input: string) => DetectionResult | null
-  transform: (input: string) => TransformResult[]
   relevance?: RelevanceConfig
   scope?: ToolScope
 }
+
+export interface TransformToolDescriptor extends BaseToolDescriptor {
+  view?: undefined
+  transform: (input: string) => TransformResult[]
+}
+
+export interface CustomViewToolDescriptor extends BaseToolDescriptor {
+  view: 'custom'
+  transform?: never
+}
+
+export type ToolDescriptor = TransformToolDescriptor | CustomViewToolDescriptor
