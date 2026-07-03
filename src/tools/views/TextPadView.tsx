@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { EditorView, lineNumbers, highlightSpecialChars, drawSelection, keymap } from '@codemirror/view'
-import { EditorState } from '@codemirror/state'
+import { Compartment, EditorState } from '@codemirror/state'
 import { history, defaultKeymap, historyKeymap } from '@codemirror/commands'
 import { indentOnInput } from '@codemirror/language'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
@@ -8,12 +8,17 @@ import { useStore } from '../../store/useStore'
 import { useTranslation } from '../../i18n/context'
 import { copyToClipboard } from '../../utils/clipboard'
 
+const wrappingCompartment = new Compartment()
+const whitespaceCompartment = new Compartment()
+
 export function TextPadView() {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const editorDoc = useStore((s) => s.editorDoc)
   const setEditorDoc = useStore((s) => s.setEditorDoc)
   const editorDocRef = useRef(editorDoc)
+  const editorPrefs = useStore((s) => s.editorPrefs)
+  const setEditorPrefs = useStore((s) => s.setEditorPrefs)
   const setActiveToolId = useStore((s) => s.setActiveToolId)
   const { t } = useTranslation()
 
@@ -28,12 +33,13 @@ export function TextPadView() {
       doc: editorDocRef.current,
       extensions: [
         lineNumbers(),
-        highlightSpecialChars(),
+        whitespaceCompartment.of(editorPrefs.showWhitespace ? highlightSpecialChars() : []),
         drawSelection(),
         EditorState.allowMultipleSelections.of(true),
         indentOnInput(),
         history(),
         highlightSelectionMatches(),
+        wrappingCompartment.of(editorPrefs.lineWrapping ? EditorView.lineWrapping : []),
         keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
@@ -50,7 +56,20 @@ export function TextPadView() {
       view.destroy()
       viewRef.current = null
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setEditorDoc])
+
+  useEffect(() => {
+    viewRef.current?.dispatch({
+      effects: wrappingCompartment.reconfigure(editorPrefs.lineWrapping ? EditorView.lineWrapping : []),
+    })
+  }, [editorPrefs.lineWrapping])
+
+  useEffect(() => {
+    viewRef.current?.dispatch({
+      effects: whitespaceCompartment.reconfigure(editorPrefs.showWhitespace ? highlightSpecialChars() : []),
+    })
+  }, [editorPrefs.showWhitespace])
 
   const handleCopy = () => {
     void copyToClipboard(viewRef.current?.state.doc.toString() ?? '')
@@ -90,6 +109,28 @@ export function TextPadView() {
             className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
           >
             {t('textPad.toolbar.clear')}
+          </button>
+          <button
+            onClick={() => setEditorPrefs({ lineWrapping: !editorPrefs.lineWrapping })}
+            className={
+              'px-2 py-1 rounded-lg transition-colors text-xs font-mono ' +
+              (editorPrefs.lineWrapping
+                ? 'bg-accent text-surface'
+                : 'bg-zinc-800 text-muted hover:text-accent')
+            }
+          >
+            {t('textPad.toolbar.wrap')}
+          </button>
+          <button
+            onClick={() => setEditorPrefs({ showWhitespace: !editorPrefs.showWhitespace })}
+            className={
+              'px-2 py-1 rounded-lg transition-colors text-xs font-mono ' +
+              (editorPrefs.showWhitespace
+                ? 'bg-accent text-surface'
+                : 'bg-zinc-800 text-muted hover:text-accent')
+            }
+          >
+            {t('textPad.toolbar.whitespace')}
           </button>
         </div>
       </header>

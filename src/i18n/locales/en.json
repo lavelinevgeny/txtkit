@@ -171,6 +171,8 @@
   "textPad.toolbar.backToTools": "← back to tools",
   "textPad.toolbar.copy": "Copy",
   "textPad.toolbar.clear": "Clear",
+  "textPad.toolbar.wrap": "Wrap lines",
+  "textPad.toolbar.whitespace": "Special chars",
   "textPad.confirmClear": "Clear all text? You can undo (Ctrl/Cmd+Z).",
   "textPad.hint.empty": "Paste text here. You can search, replace, remove duplicates, sort lines, and apply quick operations.",
   "textPad.hint.undo": "All operations can be undone with Ctrl/Cmd+Z.",
