@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
+import type { ChangeEvent } from 'react'
 import { EditorView, lineNumbers, highlightSpecialChars, drawSelection, keymap } from '@codemirror/view'
 import { Compartment, EditorState } from '@codemirror/state'
 import { history, defaultKeymap, historyKeymap } from '@codemirror/commands'
@@ -16,6 +17,7 @@ const whitespaceCompartment = new Compartment()
 export function TextPadView() {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const editorDoc = useStore((s) => s.editorDoc)
   const setEditorDoc = useStore((s) => s.setEditorDoc)
   const editorDocRef = useRef(editorDoc)
@@ -92,6 +94,32 @@ export function TextPadView() {
     }
   }
 
+  const handleUploadClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const view = viewRef.current
+    if (!view) {
+      e.target.value = ''
+      return
+    }
+    if ((view.state.doc.toString() ?? '').length > 0) {
+      if (!window.confirm(t('textPad.confirmImportReplace'))) {
+        e.target.value = ''
+        return
+      }
+    }
+    const text = await file.text()
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: text },
+      userEvent: 'input.textPad.importTxt',
+    })
+    e.target.value = ''
+  }
+
   return (
     <div className="w-full max-w-6xl flex-1 flex flex-col min-h-0 gap-2">
       <header className="flex items-center gap-2 px-3 py-2 bg-surface border border-border rounded-lg">
@@ -115,6 +143,12 @@ export function TextPadView() {
             className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
           >
             {t('textPad.toolbar.downloadTxt')}
+          </button>
+          <button
+            onClick={handleUploadClick}
+            className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
+          >
+            {t('textPad.toolbar.uploadTxt')}
           </button>
           <button
             onClick={handleClear}
@@ -146,6 +180,14 @@ export function TextPadView() {
           </button>
         </div>
       </header>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".txt,text/plain"
+        onChange={handleFileChange}
+        className="hidden"
+      />
 
       <p className="text-xs text-muted/70 px-1">{t('textPad.hint.empty')}</p>
 
