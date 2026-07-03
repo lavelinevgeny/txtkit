@@ -25,7 +25,7 @@ export function BottomCarousel() {
 
   return (
     <div className="w-full bg-surface border-t border-border px-1.5 py-3 sm:px-4 sm:py-2.5">
-      <div className="flex gap-2 sm:gap-1.5 items-center max-w-xl mx-auto overflow-x-auto">
+      <div className="flex gap-2 sm:gap-1.5 items-center max-w-4xl mx-auto overflow-x-auto scrollbar-transparent">
         <button
           onClick={() => setCatalogOpen(true)}
           className="flex-shrink-0 bg-accent/10 border border-accent/30 rounded-lg px-2.5 py-3 sm:px-3 sm:py-2 text-center min-w-[76px] sm:min-w-[56px] hover:bg-accent/20 transition-colors"

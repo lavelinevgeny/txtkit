@@ -24,10 +24,77 @@ import { downloadTextFile } from './textPadFile'
 const wrappingCompartment = new Compartment()
 const whitespaceCompartment = new Compartment()
 
+const textPadTheme = EditorView.theme(
+  {
+    '&': {
+      height: '100%',
+      backgroundColor: '#09090b',
+      color: '#e4e4e7',
+      fontSize: '13px',
+    },
+    '.cm-scroller': {
+      fontFamily: 'var(--font-mono)',
+      lineHeight: '1.65',
+      overflow: 'auto',
+    },
+    '.cm-content': {
+      minHeight: '100%',
+      padding: '14px 0',
+      caretColor: '#e8a030',
+    },
+    '.cm-line': {
+      padding: '0 18px 0 12px',
+    },
+    '.cm-gutters': {
+      backgroundColor: '#18181b',
+      color: '#71717a',
+      borderRight: '1px solid #27272a',
+    },
+    '.cm-lineNumbers .cm-gutterElement': {
+      padding: '0 10px 0 12px',
+      minWidth: '38px',
+    },
+    '.cm-activeLine': {
+      backgroundColor: 'rgba(232, 160, 48, 0.07)',
+    },
+    '.cm-activeLineGutter': {
+      backgroundColor: 'rgba(232, 160, 48, 0.12)',
+      color: '#e4e4e7',
+    },
+    '&.cm-focused': {
+      outline: 'none',
+    },
+    '&.cm-focused .cm-cursor': {
+      borderLeftColor: '#e8a030',
+    },
+    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection': {
+      backgroundColor: 'rgba(232, 160, 48, 0.28)',
+    },
+    '.cm-searchMatch': {
+      backgroundColor: 'rgba(96, 165, 250, 0.28)',
+      outline: '1px solid rgba(96, 165, 250, 0.45)',
+    },
+    '.cm-searchMatch-selected': {
+      backgroundColor: 'rgba(232, 160, 48, 0.38)',
+    },
+  },
+  { dark: true },
+)
+
+const buttonBase =
+  'rounded-lg border px-2.5 py-1.5 text-xs font-mono transition-colors focus:outline-none focus:ring-2 focus:ring-accent/30'
+const buttonIdle = `${buttonBase} border-border-dim bg-surface-dim text-muted hover:border-accent/40 hover:text-accent`
+const buttonActive = `${buttonBase} border-accent/60 bg-accent/15 text-accent`
+const buttonDanger = `${buttonBase} border-border-dim bg-surface-dim text-muted hover:border-red-400/40 hover:text-red-300`
+const inputClass =
+  'h-8 w-28 rounded-lg border border-border-dim bg-surface-dim px-2 text-xs font-mono text-text outline-none placeholder:text-muted/50 focus:border-accent/50'
+
 export function TextPadView() {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const sourceInput = useStore((s) => s.input)
+  const sourceInputRef = useRef(sourceInput)
   const editorDoc = useStore((s) => s.editorDoc)
   const setEditorDoc = useStore((s) => s.setEditorDoc)
   const editorDocRef = useRef(editorDoc)
@@ -39,6 +106,9 @@ export function TextPadView() {
   const { t } = useTranslation()
   const [prefix, setPrefix] = useState('')
   const [suffix, setSuffix] = useState('')
+  const [pendingSourceInput, setPendingSourceInput] = useState<string | null>(() =>
+    sourceInput.length > 0 && editorDoc.length > 0 && sourceInput !== editorDoc ? sourceInput : null,
+  )
 
   const stats = useMemo(() => getTextPadStats(editorDoc), [editorDoc])
 
@@ -47,11 +117,27 @@ export function TextPadView() {
   })
 
   useEffect(() => {
+    if (sourceInput.length === 0 || sourceInput === editorDocRef.current) {
+      setPendingSourceInput(null)
+      return
+    }
+    setPendingSourceInput(sourceInput)
+  }, [sourceInput])
+
+  useEffect(() => {
     if (!hostRef.current) return
+
+    const initialSourceInput = sourceInputRef.current
+    if (editorDocRef.current.length === 0 && initialSourceInput.length > 0) {
+      editorDocRef.current = initialSourceInput
+      setEditorDoc(initialSourceInput)
+      setPendingSourceInput(null)
+    }
 
     const state = EditorState.create({
       doc: editorDocRef.current,
       extensions: [
+        textPadTheme,
         lineNumbers(),
         whitespaceCompartment.of(editorPrefs.showWhitespace ? highlightSpecialChars() : []),
         drawSelection(),
@@ -156,6 +242,12 @@ export function TextPadView() {
     replaceWholeDoc(addPrefixSuffix(current, { prefix, suffix }), 'input.textPad.addPrefixSuffix')
   }
 
+  const handleImportSourceInput = () => {
+    if (pendingSourceInput === null) return
+    replaceWholeDoc(pendingSourceInput, 'input.textPad.importSourceInput')
+    setPendingSourceInput(null)
+  }
+
   const handleClear = () => {
     const view = viewRef.current
     if (!view) return
@@ -194,62 +286,55 @@ export function TextPadView() {
   }
 
   return (
-    <div className="w-full max-w-6xl flex-1 flex flex-col min-h-0 gap-2">
-      <header className="flex items-center gap-2 px-3 py-2 bg-surface border border-border rounded-lg">
-        <span className="text-base leading-none text-accent">✎</span>
-        <h2 className="text-sm font-medium text-text">{t('textPad.title')}</h2>
-        <div className="ml-auto flex items-center gap-1.5">
+    <div className="w-full max-w-[min(100vw-1.5rem,1600px)] flex-1 flex flex-col min-h-0 gap-2">
+      <header className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2">
           <button
             onClick={() => setActiveToolId(null)}
-            className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
+            className={buttonIdle}
           >
             {t('textPad.toolbar.backToTools')}
           </button>
+          <span className="text-base leading-none text-accent">✎</span>
+          <h2 className="text-sm font-semibold text-text">{t('textPad.title')}</h2>
+        </div>
+
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
           <button
             onClick={handleCopy}
-            className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
+            className={buttonIdle}
           >
             {t('textPad.toolbar.copy')}
           </button>
           <button
-            onClick={() => downloadTextFile(viewRef.current?.state.doc.toString() ?? '')}
-            className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
-          >
-            {t('textPad.toolbar.downloadTxt')}
-          </button>
-          <button
             onClick={handleUploadClick}
-            className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
+            className={buttonIdle}
           >
             {t('textPad.toolbar.uploadTxt')}
           </button>
           <button
-            onClick={handleClear}
-            className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
+            onClick={() => downloadTextFile(viewRef.current?.state.doc.toString() ?? '')}
+            className={buttonIdle}
           >
-            {t('textPad.toolbar.clear')}
+            {t('textPad.toolbar.downloadTxt')}
           </button>
           <button
             onClick={() => setEditorPrefs({ lineWrapping: !editorPrefs.lineWrapping })}
-            className={
-              'px-2 py-1 rounded-lg transition-colors text-xs font-mono ' +
-              (editorPrefs.lineWrapping
-                ? 'bg-accent text-surface'
-                : 'bg-zinc-800 text-muted hover:text-accent')
-            }
+            className={editorPrefs.lineWrapping ? buttonActive : buttonIdle}
           >
             {t('textPad.toolbar.wrap')}
           </button>
           <button
             onClick={() => setEditorPrefs({ showWhitespace: !editorPrefs.showWhitespace })}
-            className={
-              'px-2 py-1 rounded-lg transition-colors text-xs font-mono ' +
-              (editorPrefs.showWhitespace
-                ? 'bg-accent text-surface'
-                : 'bg-zinc-800 text-muted hover:text-accent')
-            }
+            className={editorPrefs.showWhitespace ? buttonActive : buttonIdle}
           >
             {t('textPad.toolbar.whitespace')}
+          </button>
+          <button
+            onClick={handleClear}
+            className={buttonDanger}
+          >
+            {t('textPad.toolbar.clear')}
           </button>
         </div>
       </header>
@@ -262,112 +347,92 @@ export function TextPadView() {
         className="hidden"
       />
 
-      <div className="flex flex-wrap items-center gap-1.5 px-3 py-1.5 bg-surface border border-border rounded-lg">
-        <button
-          onClick={() => handleQuickOp('removeEmptyLines')}
-          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
-        >
-          {t('textPad.ops.removeEmptyLines')}
-        </button>
-        <button
-          onClick={() => handleQuickOp('removeDuplicateLines')}
-          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
-        >
-          {t('textPad.ops.removeDuplicateLines')}
-        </button>
-        <button
-          onClick={() => handleQuickOp('sortLines')}
-          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
-        >
-          {t('textPad.ops.sortLines')}
-        </button>
-        <button
-          onClick={() => handleQuickOp('trimLines')}
-          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
-        >
-          {t('textPad.ops.trimLines')}
-        </button>
-        <button
-          onClick={() => handleQuickOp('shuffleLines')}
-          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
-        >
-          {t('textPad.ops.shuffleLines')}
-        </button>
-        <span className="w-px h-4 bg-zinc-700" />
-        <button
-          onClick={() => handleQuickOp('toLowerCase')}
-          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
-        >
-          {t('textPad.ops.toLowerCase')}
-        </button>
-        <button
-          onClick={() => handleQuickOp('toUpperCase')}
-          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
-        >
-          {t('textPad.ops.toUpperCase')}
-        </button>
-        <button
-          onClick={() => handleQuickOp('sentenceCase')}
-          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
-        >
-          {t('textPad.ops.sentenceCase')}
-        </button>
-        <button
-          onClick={() => handleQuickOp('titleCase')}
-          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
-        >
-          {t('textPad.ops.titleCase')}
-        </button>
-        <span className="w-px h-4 bg-zinc-700" />
-        <input
-          type="text"
-          value={prefix}
-          onChange={(e) => setPrefix(e.target.value)}
-          placeholder={t('textPad.ops.prefixPlaceholder')}
-          className="px-2 py-1 w-24 bg-zinc-800 border border-zinc-700 rounded-lg text-xs text-text placeholder-muted/50 font-mono outline-none focus:border-zinc-500"
-        />
-        <input
-          type="text"
-          value={suffix}
-          onChange={(e) => setSuffix(e.target.value)}
-          placeholder={t('textPad.ops.suffixPlaceholder')}
-          className="px-2 py-1 w-24 bg-zinc-800 border border-zinc-700 rounded-lg text-xs text-text placeholder-muted/50 font-mono outline-none focus:border-zinc-500"
-        />
-        <button
-          onClick={handleAddPrefixSuffix}
-          disabled={!prefix && !suffix}
-          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {t('textPad.ops.addPrefixSuffix')}
-        </button>
-        <span className="w-px h-4 bg-zinc-700" />
-        <button
-          onClick={() => handleQuickOp('htmlEscape')}
-          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
-        >
-          {t('textPad.ops.htmlEscape')}
-        </button>
-        <button
-          onClick={() => handleQuickOp('htmlUnescape')}
-          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
-        >
-          {t('textPad.ops.htmlUnescape')}
-        </button>
-        <button
-          onClick={() => handleQuickOp('urlEncode')}
-          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
-        >
-          {t('textPad.ops.urlEncode')}
-        </button>
-        <button
-          onClick={() => handleQuickOp('urlDecode')}
-          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
-        >
-          {t('textPad.ops.urlDecode')}
-        </button>
+      <div className="flex flex-wrap items-start gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[10px] font-mono uppercase text-muted-dim">{t('textPad.group.lines')}</span>
+          <button onClick={() => handleQuickOp('removeEmptyLines')} className={buttonIdle}>
+            {t('textPad.ops.removeEmptyLines')}
+          </button>
+          <button onClick={() => handleQuickOp('removeDuplicateLines')} className={buttonIdle}>
+            {t('textPad.ops.removeDuplicateLines')}
+          </button>
+          <button onClick={() => handleQuickOp('sortLines')} className={buttonIdle}>
+            {t('textPad.ops.sortLines')}
+          </button>
+          <button onClick={() => handleQuickOp('trimLines')} className={buttonIdle}>
+            {t('textPad.ops.trimLines')}
+          </button>
+          <button onClick={() => handleQuickOp('shuffleLines')} className={buttonIdle}>
+            {t('textPad.ops.shuffleLines')}
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[10px] font-mono uppercase text-muted-dim">{t('textPad.group.case')}</span>
+          <button onClick={() => handleQuickOp('toLowerCase')} className={buttonIdle}>
+            {t('textPad.ops.toLowerCase')}
+          </button>
+          <button onClick={() => handleQuickOp('toUpperCase')} className={buttonIdle}>
+            {t('textPad.ops.toUpperCase')}
+          </button>
+          <button onClick={() => handleQuickOp('sentenceCase')} className={buttonIdle}>
+            {t('textPad.ops.sentenceCase')}
+          </button>
+          <button onClick={() => handleQuickOp('titleCase')} className={buttonIdle}>
+            {t('textPad.ops.titleCase')}
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[10px] font-mono uppercase text-muted-dim">{t('textPad.group.prefix')}</span>
+          <input
+            type="text"
+            value={prefix}
+            onChange={(e) => setPrefix(e.target.value)}
+            placeholder={t('textPad.ops.prefixPlaceholder')}
+            className={inputClass}
+          />
+          <input
+            type="text"
+            value={suffix}
+            onChange={(e) => setSuffix(e.target.value)}
+            placeholder={t('textPad.ops.suffixPlaceholder')}
+            className={inputClass}
+          />
+          <button
+            onClick={handleAddPrefixSuffix}
+            disabled={!prefix && !suffix}
+            className={`${buttonIdle} disabled:cursor-not-allowed disabled:opacity-40`}
+          >
+            {t('textPad.ops.addPrefixSuffix')}
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[10px] font-mono uppercase text-muted-dim">{t('textPad.group.encode')}</span>
+          <button onClick={() => handleQuickOp('htmlEscape')} className={buttonIdle}>
+            {t('textPad.ops.htmlEscape')}
+          </button>
+          <button onClick={() => handleQuickOp('htmlUnescape')} className={buttonIdle}>
+            {t('textPad.ops.htmlUnescape')}
+          </button>
+          <button onClick={() => handleQuickOp('urlEncode')} className={buttonIdle}>
+            {t('textPad.ops.urlEncode')}
+          </button>
+          <button onClick={() => handleQuickOp('urlDecode')} className={buttonIdle}>
+            {t('textPad.ops.urlDecode')}
+          </button>
+        </div>
       </div>
 
-      <p className="text-xs text-muted/70 px-1">{t('textPad.hint.empty')}</p>
+      {pendingSourceInput !== null && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-xs text-text">
+          <span className="min-w-0 flex-1 text-muted">{t('textPad.importFromInput.hint')}</span>
+          <button onClick={handleImportSourceInput} className={buttonActive}>
+            {t('textPad.importFromInput.action')}
+          </button>
+        </div>
+      )}
 
       {editorAutosaveWarning && (
         <div
@@ -392,10 +457,10 @@ export function TextPadView() {
       <section
         ref={hostRef}
         data-testid="text-pad-view"
-        className="flex-1 min-h-0 h-full overflow-hidden border border-border rounded-lg"
+        className="flex-1 min-h-[360px] overflow-hidden rounded-lg border border-border bg-[#09090b]"
       />
 
-      <footer className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 bg-surface border border-border rounded-lg text-[10px] text-muted font-mono">
+      <footer className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-surface px-3 py-1.5 text-[10px] text-muted font-mono">
         <span>{t('textPad.stats.chars')}: {stats.chars}</span>
         <span>{t('textPad.stats.lines')}: {stats.lines}</span>
         {stats.detailedStatsDisabled ? (
@@ -409,8 +474,6 @@ export function TextPadView() {
           </>
         )}
       </footer>
-
-      <p className="text-xs text-muted/70 px-1">{t('textPad.hint.undo')}</p>
     </div>
   )
 }

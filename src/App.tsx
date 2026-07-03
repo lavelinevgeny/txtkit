@@ -54,12 +54,15 @@ function AppInner() {
   const activeToolId = useStore(s => s.activeToolId)
   const activeTool = activeToolId ? getToolById(activeToolId) : null
   const isCustomView = activeTool?.view === 'custom'
+  const contentClassName = isCustomView
+    ? 'flex-1 flex flex-col items-center pt-5 pb-3 px-3 lg:px-6 overflow-y-auto min-h-0'
+    : 'flex-1 flex flex-col items-center pt-16 pb-4 px-4 overflow-y-auto min-h-0'
 
   return (
     <ErrorBoundary t={t}>
       <div className="h-dvh bg-[#09090b] flex flex-col overflow-hidden">
-        <div className="flex-1 flex flex-col items-center pt-16 pb-4 px-4 overflow-y-auto min-h-0">
-          <div className="mb-5 flex items-center gap-2">
+        <div className={contentClassName}>
+          <div className={isCustomView ? 'mb-3 flex items-center gap-2' : 'mb-5 flex items-center gap-2'}>
             <h1 className="font-mono text-2xl font-bold">
               <span className="text-accent">txt</span>
               <span className="text-muted">kit</span>
