@@ -3,7 +3,7 @@ import type { ChangeEvent } from 'react'
 import { EditorView, lineNumbers, highlightSpecialChars, drawSelection, keymap } from '@codemirror/view'
 import { Compartment, EditorState } from '@codemirror/state'
 import { history, defaultKeymap, historyKeymap } from '@codemirror/commands'
-import { indentOnInput } from '@codemirror/language'
+import { bracketMatching, indentOnInput } from '@codemirror/language'
 import {
   search,
   SearchQuery,
@@ -86,6 +86,15 @@ const textPadTheme = EditorView.theme(
     '.cm-searchMatch-selected': {
       backgroundColor: 'rgba(232, 160, 48, 0.38)',
     },
+    '.cm-selectionMatch': {
+      backgroundColor: 'rgba(232, 160, 48, 0.18)',
+    },
+    '.cm-selectionMatch-main': {
+      backgroundColor: 'rgba(232, 160, 48, 0.32)',
+    },
+    '.cm-searchMatch .cm-selectionMatch': {
+      backgroundColor: 'transparent',
+    },
   },
   { dark: true },
 )
@@ -166,6 +175,7 @@ export function TextPadView() {
         drawSelection(),
         EditorState.allowMultipleSelections.of(true),
         indentOnInput(),
+        bracketMatching(),
         history(),
         highlightSelectionMatches(),
         search(),
@@ -597,9 +607,21 @@ export function TextPadView() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="flex flex-col gap-3 rounded-xl border border-border bg-surface-dim p-4 shadow-2xl"
+            className="flex w-80 flex-col gap-3 rounded-xl border border-border bg-surface-dim p-4 shadow-2xl"
           >
-            <span className="text-xs font-semibold text-text">{t('textPad.search.title')}</span>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-text">{t('textPad.search.title')}</span>
+              <button
+                onClick={handleSearchClose}
+                title={t('textPad.search.close')}
+                aria-label={t('textPad.search.close')}
+                className="flex h-7 w-7 items-center justify-center rounded-lg border border-border-dim text-muted transition-colors hover:border-accent/40 hover:text-accent"
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M5 5l14 14M19 5L5 19" />
+                </svg>
+              </button>
+            </div>
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
                 <input
@@ -612,7 +634,7 @@ export function TextPadView() {
                     if (e.key === 'Escape') handleSearchClose()
                   }}
                   placeholder={t('textPad.search.findPlaceholder')}
-                  className="h-9 w-56 rounded-lg border border-border bg-surface px-3 text-sm font-mono text-text outline-none placeholder:text-muted/50 focus:border-accent/50"
+                  className="h-9 flex-1 rounded-lg border border-border bg-surface px-3 text-sm font-mono text-text outline-none placeholder:text-muted/50 focus:border-accent/50"
                 />
                 <button
                   onClick={() => setCaseSensitive((v) => !v)}
@@ -631,19 +653,15 @@ export function TextPadView() {
                   if (e.key === 'Escape') handleSearchClose()
                 }}
                 placeholder={t('textPad.search.replacePlaceholder')}
-                className="h-9 w-[calc(14rem+2.25rem+0.5rem)] rounded-lg border border-border bg-surface px-3 text-sm font-mono text-text outline-none placeholder:text-muted/50 focus:border-accent/50"
+                className="h-9 w-full rounded-lg border border-border bg-surface px-3 text-sm font-mono text-text outline-none placeholder:text-muted/50 focus:border-accent/50"
               />
             </div>
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5">
-                <button onClick={handleFindPrev} className={buttonIdle}>{t('textPad.search.prev')}</button>
-                <button onClick={handleFindNext} className={buttonIdle}>{t('textPad.search.next')}</button>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <button onClick={handleReplaceNext} className={buttonIdle}>{t('textPad.search.replace')}</button>
-                <button onClick={handleReplaceAll} className={buttonIdle}>{t('textPad.search.replaceAll')}</button>
-                <button onClick={handleSearchClose} className={buttonIdle}>{t('textPad.search.close')}</button>
-              </div>
+            <div className="flex items-center gap-1.5">
+              <button onClick={handleFindPrev} className={buttonIdle}>{t('textPad.search.prev')}</button>
+              <button onClick={handleFindNext} className={buttonActive}>{t('textPad.search.next')}</button>
+              <div className="w-3" />
+              <button onClick={handleReplaceNext} className={buttonIdle}>{t('textPad.search.replace')}</button>
+              <button onClick={handleReplaceAll} className={buttonIdle}>{t('textPad.search.replaceAll')}</button>
             </div>
           </div>
         </div>
@@ -658,7 +676,19 @@ export function TextPadView() {
             onClick={(e) => e.stopPropagation()}
             className="flex flex-col gap-3 rounded-xl border border-border bg-surface-dim p-4 shadow-2xl"
           >
-            <span className="text-xs font-semibold text-text">{t('textPad.goToLine.title')}</span>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-text">{t('textPad.goToLine.title')}</span>
+              <button
+                onClick={handleGoToLineClose}
+                title={t('textPad.goToLine.close')}
+                aria-label={t('textPad.goToLine.close')}
+                className="flex h-7 w-7 items-center justify-center rounded-lg border border-border-dim text-muted transition-colors hover:border-accent/40 hover:text-accent"
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M5 5l14 14M19 5L5 19" />
+                </svg>
+              </button>
+            </div>
             <div className="flex items-center gap-2">
               <input
                 ref={goToLineInputRef}
@@ -670,8 +700,16 @@ export function TextPadView() {
                   setGoToLineError('')
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleGoToLineSubmit()
-                  if (e.key === 'Escape') handleGoToLineClose()
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    handleGoToLineSubmit()
+                  }
+                  if (e.key === 'Escape') {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    handleGoToLineClose()
+                  }
                 }}
                 placeholder={t('textPad.goToLine.placeholder')}
                 className="h-9 w-44 rounded-lg border border-border bg-surface px-3 text-sm font-mono text-text outline-none placeholder:text-muted/50 focus:border-accent/50"
@@ -684,12 +722,6 @@ export function TextPadView() {
               <span className="text-xs text-red-400">{goToLineError}</span>
             )}
             <div className="flex items-center justify-end gap-2">
-              <button
-                onClick={handleGoToLineClose}
-                className={buttonIdle}
-              >
-                {t('textPad.goToLine.close')}
-              </button>
               <button
                 onClick={handleGoToLineSubmit}
                 className={buttonActive}
