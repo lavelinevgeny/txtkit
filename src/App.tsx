@@ -1,11 +1,13 @@
 import { Component, type ReactNode } from 'react'
 import { I18nProvider, useTranslation } from './i18n/context'
 import { useStore } from './store/useStore'
-import { SmartInput } from './components/SmartInput'
-import { DetectionBadge } from './components/DetectionBadge'
-import { ResultTiles } from './components/ResultTiles'
 import { BottomCarousel } from './components/BottomCarousel'
+import { CustomViewHost } from './components/CustomViewHost'
+import { DetectionBadge } from './components/DetectionBadge'
 import { FullCatalog } from './components/FullCatalog'
+import { ResultTiles } from './components/ResultTiles'
+import { SmartInput } from './components/SmartInput'
+import { getToolById } from './tools/registry'
 
 function LocaleToggle() {
   const locale = useStore(s => s.locale)
@@ -49,6 +51,9 @@ class ErrorBoundary extends Component<{ children: ReactNode; t: (key: string) =>
 
 function AppInner() {
   const { t } = useTranslation()
+  const activeToolId = useStore(s => s.activeToolId)
+  const activeTool = activeToolId ? getToolById(activeToolId) : null
+  const isCustomView = activeTool?.view === 'custom'
 
   return (
     <ErrorBoundary t={t}>
@@ -62,9 +67,15 @@ function AppInner() {
             <LocaleToggle />
           </div>
 
-          <SmartInput />
-          <DetectionBadge />
-          <ResultTiles />
+          {isCustomView && activeToolId ? (
+            <CustomViewHost toolId={activeToolId} />
+          ) : (
+            <>
+              <SmartInput />
+              <DetectionBadge />
+              <ResultTiles />
+            </>
+          )}
         </div>
 
         <BottomCarousel />
