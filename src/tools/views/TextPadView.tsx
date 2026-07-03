@@ -3,6 +3,7 @@ import { EditorView, lineNumbers, highlightSpecialChars, drawSelection, keymap }
 import { EditorState } from '@codemirror/state'
 import { history, defaultKeymap, historyKeymap } from '@codemirror/commands'
 import { indentOnInput } from '@codemirror/language'
+import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { useStore } from '../../store/useStore'
 
 export function TextPadView() {
@@ -28,7 +29,8 @@ export function TextPadView() {
         EditorState.allowMultipleSelections.of(true),
         indentOnInput(),
         history(),
-        keymap.of([...defaultKeymap, ...historyKeymap]),
+        highlightSelectionMatches(),
+        keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
             setEditorDoc(update.state.doc.toString())
