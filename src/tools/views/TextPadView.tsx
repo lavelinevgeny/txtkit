@@ -17,6 +17,7 @@ import {
   addPrefixSuffix,
 } from '../../utils/text-ops'
 import { toLowerCase, toUpperCase, toSentenceCase, toTitleCase } from '../../utils/text-case-ops'
+import { htmlEscape, htmlUnescape, urlEncode, urlDecode } from '../../utils/text-encode-ops'
 import { getTextPadStats } from './textPadStats'
 import { downloadTextFile } from './textPadFile'
 
@@ -103,7 +104,7 @@ export function TextPadView() {
     })
   }
 
-  const handleQuickOp = (op: 'removeEmptyLines' | 'removeDuplicateLines' | 'sortLines' | 'trimLines' | 'shuffleLines' | 'toLowerCase' | 'toUpperCase' | 'sentenceCase' | 'titleCase') => {
+  const handleQuickOp = (op: 'removeEmptyLines' | 'removeDuplicateLines' | 'sortLines' | 'trimLines' | 'shuffleLines' | 'toLowerCase' | 'toUpperCase' | 'sentenceCase' | 'titleCase' | 'htmlEscape' | 'htmlUnescape' | 'urlEncode' | 'urlDecode') => {
     const current = viewRef.current?.state.doc.toString() ?? ''
     const userEvent = `input.textPad.${op}`
     switch (op) {
@@ -133,6 +134,18 @@ export function TextPadView() {
         break
       case 'titleCase':
         replaceWholeDoc(toTitleCase(current), userEvent)
+        break
+      case 'htmlEscape':
+        replaceWholeDoc(htmlEscape(current), userEvent)
+        break
+      case 'htmlUnescape':
+        replaceWholeDoc(htmlUnescape(current), userEvent)
+        break
+      case 'urlEncode':
+        replaceWholeDoc(urlEncode(current), userEvent)
+        break
+      case 'urlDecode':
+        replaceWholeDoc(urlDecode(current), userEvent)
         break
     }
   }
@@ -326,6 +339,31 @@ export function TextPadView() {
           className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {t('textPad.ops.addPrefixSuffix')}
+        </button>
+        <span className="w-px h-4 bg-zinc-700" />
+        <button
+          onClick={() => handleQuickOp('htmlEscape')}
+          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
+        >
+          {t('textPad.ops.htmlEscape')}
+        </button>
+        <button
+          onClick={() => handleQuickOp('htmlUnescape')}
+          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
+        >
+          {t('textPad.ops.htmlUnescape')}
+        </button>
+        <button
+          onClick={() => handleQuickOp('urlEncode')}
+          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
+        >
+          {t('textPad.ops.urlEncode')}
+        </button>
+        <button
+          onClick={() => handleQuickOp('urlDecode')}
+          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
+        >
+          {t('textPad.ops.urlDecode')}
         </button>
       </div>
 

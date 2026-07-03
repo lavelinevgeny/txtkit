@@ -1,5 +1,6 @@
 import type { ToolDescriptor } from '../types/tool'
 import { t } from '../i18n/translate'
+import { htmlEscape, htmlUnescape, urlEncode, urlDecode } from '../utils/text-encode-ops'
 
 export const encodeTool: ToolDescriptor = {
   id: 'encode',
@@ -28,13 +29,21 @@ export const encodeTool: ToolDescriptor = {
       try { return btoa(unescape(encodeURIComponent(input))) } catch { return t('encode.error.encodingFailed') }
     })()
 
+    const urlEncodeSafe = (() => {
+      try { return urlEncode(input) } catch { return t('encode.error.encodingFailed') }
+    })()
+
+    const urlDecodeSafe = (() => {
+      try { return urlDecode(input) } catch { return t('encode.error.invalidUrl') }
+    })()
+
     return [
       { label: 'Base64 encode', value: base64Encode },
       { label: 'Base64 decode', value: base64Decode },
-      { label: 'URL encode', value: encodeURIComponent(input) },
-      { label: 'URL decode', value: (() => { try { return decodeURIComponent(input) } catch { return t('encode.error.invalidUrl') } })() },
-      { label: 'HTML escape', value: input.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') },
-      { label: 'HTML unescape', value: input.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') },
+      { label: 'URL encode', value: urlEncodeSafe },
+      { label: 'URL decode', value: urlDecodeSafe },
+      { label: 'HTML escape', value: htmlEscape(input) },
+      { label: 'HTML unescape', value: htmlUnescape(input) },
       { label: 'Escape quotes (""', value: `"${input.replace(/"/g, '""')}"` },
       { label: 'Unescape quotes (""', value: (() => { const txt = input.trim(); return txt.startsWith('"') && txt.endsWith('"') ? txt.slice(1, -1).replace(/""/g, '"') : t('encode.error.notQuoted') })() },
     ]
