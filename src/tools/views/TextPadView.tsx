@@ -27,6 +27,7 @@ import {
 } from '../../utils/text-ops'
 import { toLowerCase, toUpperCase, toSentenceCase, toTitleCase } from '../../utils/text-case-ops'
 import { htmlEscape, htmlUnescape, urlEncode, urlDecode } from '../../utils/text-encode-ops'
+import { formatJson, minifyJson } from '../../utils/text-format-ops'
 import { getTextPadStats } from './textPadStats'
 import { downloadTextFile } from './textPadFile'
 
@@ -139,6 +140,7 @@ export function TextPadView() {
   const [searchTerm, setSearchTerm] = useState('')
   const [replaceText, setReplaceText] = useState('')
   const [caseSensitive, setCaseSensitive] = useState(false)
+  const [formatError, setFormatError] = useState<string | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const searchOpenRef = useRef<() => void>(() => {})
 
@@ -276,7 +278,7 @@ export function TextPadView() {
     })
   }
 
-  const handleQuickOp = (op: 'removeEmptyLines' | 'removeDuplicateLines' | 'sortLines' | 'trimLines' | 'shuffleLines' | 'toLowerCase' | 'toUpperCase' | 'sentenceCase' | 'titleCase' | 'htmlEscape' | 'htmlUnescape' | 'urlEncode' | 'urlDecode') => {
+  const handleQuickOp = (op: 'removeEmptyLines' | 'removeDuplicateLines' | 'sortLines' | 'trimLines' | 'shuffleLines' | 'toLowerCase' | 'toUpperCase' | 'sentenceCase' | 'titleCase' | 'htmlEscape' | 'htmlUnescape' | 'urlEncode' | 'urlDecode' | 'formatJson' | 'minifyJson') => {
     const current = viewRef.current?.state.doc.toString() ?? ''
     const userEvent = `input.textPad.${op}`
     switch (op) {
@@ -318,6 +320,22 @@ export function TextPadView() {
         break
       case 'urlDecode':
         replaceWholeDoc(urlDecode(current), userEvent)
+        break
+      case 'formatJson':
+        try {
+          replaceWholeDoc(formatJson(current), userEvent)
+          setFormatError(null)
+        } catch (e) {
+          setFormatError((e as Error).message)
+        }
+        break
+      case 'minifyJson':
+        try {
+          replaceWholeDoc(minifyJson(current), userEvent)
+          setFormatError(null)
+        } catch (e) {
+          setFormatError((e as Error).message)
+        }
         break
     }
   }
@@ -577,6 +595,33 @@ export function TextPadView() {
               {t('textPad.ops.urlDecode')}
             </button>
           </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-[10px] font-mono uppercase text-muted-dim">{t('textPad.group.format')}</span>
+            <button onClick={() => handleQuickOp('formatJson')} className={buttonIdle}>
+              {t('textPad.ops.formatJson')}
+            </button>
+            <button onClick={() => handleQuickOp('minifyJson')} className={buttonIdle}>
+              {t('textPad.ops.minifyJson')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {formatError && (
+        <div
+          role="alert"
+          data-testid="text-pad-format-error"
+          className="flex items-start gap-2 px-3 py-2 bg-red-500/10 border border-red-500/40 rounded-lg text-xs text-red-200"
+        >
+          <span className="text-red-300 font-mono">{t('textPad.ops.formatErrorLabel')}</span>
+          <span className="flex-1 font-mono break-all">{formatError}</span>
+          <button
+            onClick={() => setFormatError(null)}
+            className="px-2 py-0.5 bg-red-500/20 rounded text-red-100 hover:bg-red-500/30 transition-colors text-[10px] font-mono"
+          >
+            {t('textPad.ops.formatErrorDismiss')}
+          </button>
         </div>
       )}
 
@@ -630,7 +675,10 @@ export function TextPadView() {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') e.shiftKey ? handleFindPrev() : handleFindNext()
+                    if (e.key === 'Enter') {
+                      if (e.shiftKey) handleFindPrev()
+                      else handleFindNext()
+                    }
                     if (e.key === 'Escape') handleSearchClose()
                   }}
                   placeholder={t('textPad.search.findPlaceholder')}
