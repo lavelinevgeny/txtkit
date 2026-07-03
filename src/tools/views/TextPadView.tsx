@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { EditorView, lineNumbers, highlightSpecialChars, drawSelection, keymap } from '@codemirror/view'
 import { Compartment, EditorState } from '@codemirror/state'
 import { history, defaultKeymap, historyKeymap } from '@codemirror/commands'
@@ -7,6 +7,7 @@ import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { useStore } from '../../store/useStore'
 import { useTranslation } from '../../i18n/context'
 import { copyToClipboard } from '../../utils/clipboard'
+import { getTextPadStats } from './textPadStats'
 
 const wrappingCompartment = new Compartment()
 const whitespaceCompartment = new Compartment()
@@ -21,6 +22,8 @@ export function TextPadView() {
   const setEditorPrefs = useStore((s) => s.setEditorPrefs)
   const setActiveToolId = useStore((s) => s.setActiveToolId)
   const { t } = useTranslation()
+
+  const stats = useMemo(() => getTextPadStats(editorDoc), [editorDoc])
 
   useEffect(() => {
     editorDocRef.current = editorDoc
@@ -142,6 +145,21 @@ export function TextPadView() {
         data-testid="text-pad-view"
         className="flex-1 min-h-0 h-full overflow-hidden border border-border rounded-lg"
       />
+
+      <footer className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 bg-surface border border-border rounded-lg text-[10px] text-muted font-mono">
+        <span>{t('textPad.stats.chars')}: {stats.chars}</span>
+        <span>{t('textPad.stats.lines')}: {stats.lines}</span>
+        {stats.detailedStatsDisabled ? (
+          <span className="text-muted/70">{t('textPad.stats.detailedDisabled')}</span>
+        ) : (
+          <>
+            {stats.words !== null && <span>{t('textPad.stats.words')}: {stats.words}</span>}
+            {stats.paragraphs !== null && (
+              <span>{t('textPad.stats.paragraphs')}: {stats.paragraphs}</span>
+            )}
+          </>
+        )}
+      </footer>
 
       <p className="text-xs text-muted/70 px-1">{t('textPad.hint.undo')}</p>
     </div>
