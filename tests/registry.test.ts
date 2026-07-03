@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { getAllTools, getToolsByCategory } from '../src/tools/registry'
+import { getAllTools, getToolsByCategory, getToolById } from '../src/tools/registry'
 
 describe('tool registry', () => {
-  it('returns all 8 tools', () => {
+  it('returns all 9 tools', () => {
     const tools = getAllTools()
-    expect(tools.length).toBe(8)
+    expect(tools.length).toBe(9)
   })
 
   it('each tool has unique id', () => {
@@ -18,10 +18,16 @@ describe('tool registry', () => {
     expect(Object.keys(groups).sort()).toEqual(['analysis', 'dev', 'encoding', 'json', 'transform', 'yaml'].sort())
   })
 
-  it('transform category has 3 tools', () => {
+  it('transform category has 4 tools', () => {
     const groups = getToolsByCategory()
-    expect(groups['transform'].length).toBe(3)
+    expect(groups['transform'].length).toBe(4)
     expect(groups['transform'].some(tool => tool.id === 'list-converter')).toBe(true)
+  })
+
+  it('text-pad is a custom-view tool', () => {
+    const tool = getToolById('text-pad')
+    expect(tool).toBeDefined()
+    expect(tool!.view).toBe('custom')
   })
 
   it('analysis category has 1 tool', () => {
