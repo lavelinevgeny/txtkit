@@ -21,6 +21,8 @@ export function TextPadView() {
   const editorPrefs = useStore((s) => s.editorPrefs)
   const setEditorPrefs = useStore((s) => s.setEditorPrefs)
   const setActiveToolId = useStore((s) => s.setActiveToolId)
+  const editorAutosaveWarning = useStore((s) => s.editorAutosaveWarning)
+  const clearEditorAutosaveWarning = useStore((s) => s.clearEditorAutosaveWarning)
   const { t } = useTranslation()
 
   const stats = useMemo(() => getTextPadStats(editorDoc), [editorDoc])
@@ -139,6 +141,26 @@ export function TextPadView() {
       </header>
 
       <p className="text-xs text-muted/70 px-1">{t('textPad.hint.empty')}</p>
+
+      {editorAutosaveWarning && (
+        <div
+          role="alert"
+          data-testid="text-pad-autosave-warning"
+          className="flex items-start gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/40 rounded-lg text-xs text-amber-200"
+        >
+          <span className="flex-1">
+            {editorAutosaveWarning === 'autosave-too-large'
+              ? t('textPad.autosave.tooLarge')
+              : t('textPad.autosave.quotaExceeded')}
+          </span>
+          <button
+            onClick={clearEditorAutosaveWarning}
+            className="px-2 py-0.5 bg-amber-500/20 rounded text-amber-100 hover:bg-amber-500/30 transition-colors text-[10px] font-mono"
+          >
+            {t('textPad.autosave.dismiss')}
+          </button>
+        </div>
+      )}
 
       <section
         ref={hostRef}
