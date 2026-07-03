@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { EditorView, lineNumbers, highlightSpecialChars, drawSelection, keymap } from '@codemirror/view'
 import { Compartment, EditorState } from '@codemirror/state'
@@ -14,6 +14,7 @@ import {
   sortLines,
   trimLines,
   shuffleLines,
+  addPrefixSuffix,
 } from '../../utils/text-ops'
 import { getTextPadStats } from './textPadStats'
 import { downloadTextFile } from './textPadFile'
@@ -34,6 +35,8 @@ export function TextPadView() {
   const editorAutosaveWarning = useStore((s) => s.editorAutosaveWarning)
   const clearEditorAutosaveWarning = useStore((s) => s.clearEditorAutosaveWarning)
   const { t } = useTranslation()
+  const [prefix, setPrefix] = useState('')
+  const [suffix, setSuffix] = useState('')
 
   const stats = useMemo(() => getTextPadStats(editorDoc), [editorDoc])
 
@@ -119,6 +122,12 @@ export function TextPadView() {
         replaceWholeDoc(shuffleLines(current), userEvent)
         break
     }
+  }
+
+  const handleAddPrefixSuffix = () => {
+    const current = viewRef.current?.state.doc.toString() ?? ''
+    if (!prefix && !suffix) return
+    replaceWholeDoc(addPrefixSuffix(current, { prefix, suffix }), 'input.textPad.addPrefixSuffix')
   }
 
   const handleClear = () => {
@@ -257,6 +266,28 @@ export function TextPadView() {
           className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
         >
           {t('textPad.ops.shuffleLines')}
+        </button>
+        <span className="w-px h-4 bg-zinc-700" />
+        <input
+          type="text"
+          value={prefix}
+          onChange={(e) => setPrefix(e.target.value)}
+          placeholder={t('textPad.ops.prefixPlaceholder')}
+          className="px-2 py-1 w-24 bg-zinc-800 border border-zinc-700 rounded-lg text-xs text-text placeholder-muted/50 font-mono outline-none focus:border-zinc-500"
+        />
+        <input
+          type="text"
+          value={suffix}
+          onChange={(e) => setSuffix(e.target.value)}
+          placeholder={t('textPad.ops.suffixPlaceholder')}
+          className="px-2 py-1 w-24 bg-zinc-800 border border-zinc-700 rounded-lg text-xs text-text placeholder-muted/50 font-mono outline-none focus:border-zinc-500"
+        />
+        <button
+          onClick={handleAddPrefixSuffix}
+          disabled={!prefix && !suffix}
+          className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {t('textPad.ops.addPrefixSuffix')}
         </button>
       </div>
 
