@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { EditorView, lineNumbers, highlightSpecialChars, drawSelection, keymap } from '@codemirror/view'
 import { Compartment, EditorState } from '@codemirror/state'
@@ -110,6 +110,12 @@ export function TextPadView() {
   const [pendingSourceInput, setPendingSourceInput] = useState<string | null>(() =>
     sourceInput.length > 0 && editorDoc.length > 0 && sourceInput !== editorDoc ? sourceInput : null,
   )
+  const [goToLineOpen, setGoToLineOpen] = useState(false)
+  const [goToLineValue, setGoToLineValue] = useState('')
+  const [goToLineError, setGoToLineError] = useState('')
+  const [goToLineTotal, setGoToLineTotal] = useState(0)
+  const goToLineOpenRef = useRef<() => void>(() => {})
+  const goToLineInputRef = useRef<HTMLInputElement>(null)
 
   const stats = useMemo(() => getTextPadStats(editorDoc), [editorDoc])
 
@@ -147,7 +153,14 @@ export function TextPadView() {
         history(),
         highlightSelectionMatches(),
         wrappingCompartment.of(editorPrefs.lineWrapping ? EditorView.lineWrapping : []),
-        keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
+        keymap.of([...defaultKeymap, ...historyKeymap, {
+          key: 'Mod-Alt-g',
+          run: () => {
+            goToLineOpenRef.current()
+            return true
+          },
+          preventDefault: true,
+        }, ...searchKeymap]),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
             setEditorDoc(update.state.doc.toString())
@@ -177,6 +190,20 @@ export function TextPadView() {
       effects: whitespaceCompartment.reconfigure(editorPrefs.showWhitespace ? highlightSpecialChars() : []),
     })
   }, [editorPrefs.showWhitespace])
+
+  useEffect(() => {
+    goToLineOpenRef.current = () => {
+      const view = viewRef.current
+      if (!view) return
+      const { head } = view.state.selection.main
+      const line = view.state.doc.lineAt(head)
+      setGoToLineValue(String(line.number))
+      setGoToLineTotal(view.state.doc.lines)
+      setGoToLineError('')
+      setGoToLineOpen(true)
+      setTimeout(() => goToLineInputRef.current?.focus(), 0)
+    }
+  })
 
   const handleCopy = () => {
     void copyToClipboard(viewRef.current?.state.doc.toString() ?? '')
@@ -260,6 +287,33 @@ export function TextPadView() {
     }
   }
 
+  const handleGoToLineClose = useCallback(() => {
+    setGoToLineOpen(false)
+    setGoToLineError('')
+  }, [])
+
+  const handleGoToLineSubmit = useCallback(() => {
+    const view = viewRef.current
+    if (!view) return
+    const num = Number(goToLineValue)
+    const total = view.state.doc.lines
+    if (!Number.isFinite(num) || num % 1 !== 0 || num < 1 || num > total) {
+      setGoToLineError(
+        !Number.isFinite(num) || num % 1 !== 0 || num < 1
+          ? t('textPad.goToLine.errorInvalid')
+          : t('textPad.goToLine.errorOutOfRange'),
+      )
+      return
+    }
+    const line = view.state.doc.line(num)
+    view.dispatch({
+      selection: { anchor: line.from },
+      effects: EditorView.scrollIntoView(line.from, { y: 'center' }),
+    })
+    setGoToLineOpen(false)
+    view.focus()
+  }, [goToLineValue, t])
+
   const handleUploadClick = () => {
     fileInputRef.current?.click()
   }
@@ -310,7 +364,7 @@ export function TextPadView() {
             onClick={() => setOperationsOpen((open) => !open)}
             className={operationsOpen ? buttonActive : buttonIdle}
           >
-            {t('textPad.toolbar.operations')}
+            {t('textPad.toolbar.operations')} {operationsOpen ? '▴' : '▾'}
           </button>
           <button
             onClick={handleCopy}
@@ -456,6 +510,58 @@ export function TextPadView() {
           >
             {t('textPad.autosave.dismiss')}
           </button>
+        </div>
+      )}
+
+      {goToLineOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-[15vh]"
+          onClick={handleGoToLineClose}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="flex flex-col gap-3 rounded-xl border border-border bg-surface-dim p-4 shadow-2xl"
+          >
+            <span className="text-xs font-semibold text-text">{t('textPad.goToLine.title')}</span>
+            <div className="flex items-center gap-2">
+              <input
+                ref={goToLineInputRef}
+                type="text"
+                inputMode="numeric"
+                value={goToLineValue}
+                onChange={(e) => {
+                  setGoToLineValue(e.target.value)
+                  setGoToLineError('')
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleGoToLineSubmit()
+                  if (e.key === 'Escape') handleGoToLineClose()
+                }}
+                placeholder={t('textPad.goToLine.placeholder')}
+                className="h-9 w-44 rounded-lg border border-border bg-surface px-3 text-sm font-mono text-text outline-none placeholder:text-muted/50 focus:border-accent/50"
+              />
+              <span className="text-xs text-muted">
+                {t('textPad.goToLine.of')} {goToLineTotal}
+              </span>
+            </div>
+            {goToLineError && (
+              <span className="text-xs text-red-400">{goToLineError}</span>
+            )}
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={handleGoToLineClose}
+                className={buttonIdle}
+              >
+                {t('textPad.goToLine.close')}
+              </button>
+              <button
+                onClick={handleGoToLineSubmit}
+                className={buttonActive}
+              >
+                {t('textPad.goToLine.go')}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
