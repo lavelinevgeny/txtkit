@@ -173,6 +173,7 @@
   "textPad.toolbar.clear": "Clear",
   "textPad.toolbar.wrap": "Wrap lines",
   "textPad.toolbar.whitespace": "Special chars",
+  "textPad.toolbar.downloadTxt": "Download .txt",
   "textPad.stats.chars": "Characters",
   "textPad.stats.lines": "Lines",
   "textPad.stats.words": "Words",

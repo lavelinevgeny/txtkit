@@ -173,6 +173,7 @@
   "textPad.toolbar.clear": "Очистить",
   "textPad.toolbar.wrap": "Перенос строк",
   "textPad.toolbar.whitespace": "Спецсимволы",
+  "textPad.toolbar.downloadTxt": "Скачать .txt",
   "textPad.stats.chars": "Символы",
   "textPad.stats.lines": "Строки",
   "textPad.stats.words": "Слова",

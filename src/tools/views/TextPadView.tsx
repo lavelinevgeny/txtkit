@@ -8,6 +8,7 @@ import { useStore } from '../../store/useStore'
 import { useTranslation } from '../../i18n/context'
 import { copyToClipboard } from '../../utils/clipboard'
 import { getTextPadStats } from './textPadStats'
+import { downloadTextFile } from './textPadFile'
 
 const wrappingCompartment = new Compartment()
 const whitespaceCompartment = new Compartment()
@@ -108,6 +109,12 @@ export function TextPadView() {
             className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
           >
             {t('textPad.toolbar.copy')}
+          </button>
+          <button
+            onClick={() => downloadTextFile(viewRef.current?.state.doc.toString() ?? '')}
+            className="px-2 py-1 bg-zinc-800 rounded-lg text-muted hover:text-accent transition-colors text-xs font-mono"
+          >
+            {t('textPad.toolbar.downloadTxt')}
           </button>
           <button
             onClick={handleClear}
