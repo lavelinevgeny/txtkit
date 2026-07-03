@@ -72,3 +72,40 @@ body {
   background: #27272a;
   border-radius: 2px;
 }
+
+.text-pad-editor-host .cm-scroller {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(113, 113, 122, 0.22) transparent;
+}
+
+.text-pad-editor-host .cm-scroller:hover,
+.text-pad-editor-host .cm-editor.cm-focused .cm-scroller {
+  scrollbar-color: rgba(113, 113, 122, 0.55) transparent;
+}
+
+.text-pad-editor-host .cm-scroller::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.text-pad-editor-host .cm-scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.text-pad-editor-host .cm-scroller::-webkit-scrollbar-thumb {
+  background: rgba(113, 113, 122, 0.22);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.text-pad-editor-host .cm-scroller:hover::-webkit-scrollbar-thumb,
+.text-pad-editor-host .cm-editor.cm-focused .cm-scroller::-webkit-scrollbar-thumb {
+  background: rgba(113, 113, 122, 0.55);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.text-pad-editor-host .cm-scroller::-webkit-scrollbar-corner {
+  background: transparent;
+}

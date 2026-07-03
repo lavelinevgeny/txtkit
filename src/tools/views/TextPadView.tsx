@@ -106,6 +106,7 @@ export function TextPadView() {
   const { t } = useTranslation()
   const [prefix, setPrefix] = useState('')
   const [suffix, setSuffix] = useState('')
+  const [operationsOpen, setOperationsOpen] = useState(false)
   const [pendingSourceInput, setPendingSourceInput] = useState<string | null>(() =>
     sourceInput.length > 0 && editorDoc.length > 0 && sourceInput !== editorDoc ? sourceInput : null,
   )
@@ -286,7 +287,7 @@ export function TextPadView() {
   }
 
   return (
-    <div className="w-full max-w-[min(100vw-1.5rem,1600px)] flex-1 flex flex-col min-h-0 gap-2">
+    <div className="w-full max-w-none flex-1 flex flex-col min-h-0 gap-2">
       <header className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <button
@@ -300,6 +301,17 @@ export function TextPadView() {
         </div>
 
         <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+          {pendingSourceInput !== null && (
+            <button onClick={handleImportSourceInput} className={buttonActive}>
+              {t('textPad.importFromInput.action')}
+            </button>
+          )}
+          <button
+            onClick={() => setOperationsOpen((open) => !open)}
+            className={operationsOpen ? buttonActive : buttonIdle}
+          >
+            {t('textPad.toolbar.operations')}
+          </button>
           <button
             onClick={handleCopy}
             className={buttonIdle}
@@ -347,90 +359,83 @@ export function TextPadView() {
         className="hidden"
       />
 
-      <div className="flex flex-wrap items-start gap-2 rounded-lg border border-border bg-surface px-3 py-2">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-[10px] font-mono uppercase text-muted-dim">{t('textPad.group.lines')}</span>
-          <button onClick={() => handleQuickOp('removeEmptyLines')} className={buttonIdle}>
-            {t('textPad.ops.removeEmptyLines')}
-          </button>
-          <button onClick={() => handleQuickOp('removeDuplicateLines')} className={buttonIdle}>
-            {t('textPad.ops.removeDuplicateLines')}
-          </button>
-          <button onClick={() => handleQuickOp('sortLines')} className={buttonIdle}>
-            {t('textPad.ops.sortLines')}
-          </button>
-          <button onClick={() => handleQuickOp('trimLines')} className={buttonIdle}>
-            {t('textPad.ops.trimLines')}
-          </button>
-          <button onClick={() => handleQuickOp('shuffleLines')} className={buttonIdle}>
-            {t('textPad.ops.shuffleLines')}
-          </button>
-        </div>
+      {operationsOpen && (
+        <div className="flex flex-wrap items-start gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-[10px] font-mono uppercase text-muted-dim">{t('textPad.group.lines')}</span>
+            <button onClick={() => handleQuickOp('removeEmptyLines')} className={buttonIdle}>
+              {t('textPad.ops.removeEmptyLines')}
+            </button>
+            <button onClick={() => handleQuickOp('removeDuplicateLines')} className={buttonIdle}>
+              {t('textPad.ops.removeDuplicateLines')}
+            </button>
+            <button onClick={() => handleQuickOp('sortLines')} className={buttonIdle}>
+              {t('textPad.ops.sortLines')}
+            </button>
+            <button onClick={() => handleQuickOp('trimLines')} className={buttonIdle}>
+              {t('textPad.ops.trimLines')}
+            </button>
+            <button onClick={() => handleQuickOp('shuffleLines')} className={buttonIdle}>
+              {t('textPad.ops.shuffleLines')}
+            </button>
+          </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-[10px] font-mono uppercase text-muted-dim">{t('textPad.group.case')}</span>
-          <button onClick={() => handleQuickOp('toLowerCase')} className={buttonIdle}>
-            {t('textPad.ops.toLowerCase')}
-          </button>
-          <button onClick={() => handleQuickOp('toUpperCase')} className={buttonIdle}>
-            {t('textPad.ops.toUpperCase')}
-          </button>
-          <button onClick={() => handleQuickOp('sentenceCase')} className={buttonIdle}>
-            {t('textPad.ops.sentenceCase')}
-          </button>
-          <button onClick={() => handleQuickOp('titleCase')} className={buttonIdle}>
-            {t('textPad.ops.titleCase')}
-          </button>
-        </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-[10px] font-mono uppercase text-muted-dim">{t('textPad.group.case')}</span>
+            <button onClick={() => handleQuickOp('toLowerCase')} className={buttonIdle}>
+              {t('textPad.ops.toLowerCase')}
+            </button>
+            <button onClick={() => handleQuickOp('toUpperCase')} className={buttonIdle}>
+              {t('textPad.ops.toUpperCase')}
+            </button>
+            <button onClick={() => handleQuickOp('sentenceCase')} className={buttonIdle}>
+              {t('textPad.ops.sentenceCase')}
+            </button>
+            <button onClick={() => handleQuickOp('titleCase')} className={buttonIdle}>
+              {t('textPad.ops.titleCase')}
+            </button>
+          </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-[10px] font-mono uppercase text-muted-dim">{t('textPad.group.prefix')}</span>
-          <input
-            type="text"
-            value={prefix}
-            onChange={(e) => setPrefix(e.target.value)}
-            placeholder={t('textPad.ops.prefixPlaceholder')}
-            className={inputClass}
-          />
-          <input
-            type="text"
-            value={suffix}
-            onChange={(e) => setSuffix(e.target.value)}
-            placeholder={t('textPad.ops.suffixPlaceholder')}
-            className={inputClass}
-          />
-          <button
-            onClick={handleAddPrefixSuffix}
-            disabled={!prefix && !suffix}
-            className={`${buttonIdle} disabled:cursor-not-allowed disabled:opacity-40`}
-          >
-            {t('textPad.ops.addPrefixSuffix')}
-          </button>
-        </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-[10px] font-mono uppercase text-muted-dim">{t('textPad.group.prefix')}</span>
+            <input
+              type="text"
+              value={prefix}
+              onChange={(e) => setPrefix(e.target.value)}
+              placeholder={t('textPad.ops.prefixPlaceholder')}
+              className={inputClass}
+            />
+            <input
+              type="text"
+              value={suffix}
+              onChange={(e) => setSuffix(e.target.value)}
+              placeholder={t('textPad.ops.suffixPlaceholder')}
+              className={inputClass}
+            />
+            <button
+              onClick={handleAddPrefixSuffix}
+              disabled={!prefix && !suffix}
+              className={`${buttonIdle} disabled:cursor-not-allowed disabled:opacity-40`}
+            >
+              {t('textPad.ops.addPrefixSuffix')}
+            </button>
+          </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-[10px] font-mono uppercase text-muted-dim">{t('textPad.group.encode')}</span>
-          <button onClick={() => handleQuickOp('htmlEscape')} className={buttonIdle}>
-            {t('textPad.ops.htmlEscape')}
-          </button>
-          <button onClick={() => handleQuickOp('htmlUnescape')} className={buttonIdle}>
-            {t('textPad.ops.htmlUnescape')}
-          </button>
-          <button onClick={() => handleQuickOp('urlEncode')} className={buttonIdle}>
-            {t('textPad.ops.urlEncode')}
-          </button>
-          <button onClick={() => handleQuickOp('urlDecode')} className={buttonIdle}>
-            {t('textPad.ops.urlDecode')}
-          </button>
-        </div>
-      </div>
-
-      {pendingSourceInput !== null && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-xs text-text">
-          <span className="min-w-0 flex-1 text-muted">{t('textPad.importFromInput.hint')}</span>
-          <button onClick={handleImportSourceInput} className={buttonActive}>
-            {t('textPad.importFromInput.action')}
-          </button>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-[10px] font-mono uppercase text-muted-dim">{t('textPad.group.encode')}</span>
+            <button onClick={() => handleQuickOp('htmlEscape')} className={buttonIdle}>
+              {t('textPad.ops.htmlEscape')}
+            </button>
+            <button onClick={() => handleQuickOp('htmlUnescape')} className={buttonIdle}>
+              {t('textPad.ops.htmlUnescape')}
+            </button>
+            <button onClick={() => handleQuickOp('urlEncode')} className={buttonIdle}>
+              {t('textPad.ops.urlEncode')}
+            </button>
+            <button onClick={() => handleQuickOp('urlDecode')} className={buttonIdle}>
+              {t('textPad.ops.urlDecode')}
+            </button>
+          </div>
         </div>
       )}
 
@@ -457,7 +462,7 @@ export function TextPadView() {
       <section
         ref={hostRef}
         data-testid="text-pad-view"
-        className="flex-1 min-h-[360px] overflow-hidden rounded-lg border border-border bg-[#09090b]"
+        className="text-pad-editor-host flex-1 min-h-[360px] overflow-hidden rounded-lg border border-border bg-[#09090b]"
       />
 
       <footer className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-surface px-3 py-1.5 text-[10px] text-muted font-mono">

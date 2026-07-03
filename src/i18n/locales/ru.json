@@ -175,6 +175,7 @@
   "textPad.toolbar.whitespace": "Спецсимволы",
   "textPad.toolbar.downloadTxt": "Скачать .txt",
   "textPad.toolbar.uploadTxt": "Загрузить .txt",
+  "textPad.toolbar.operations": "Операции",
   "textPad.group.lines": "Строки",
   "textPad.group.case": "Регистр",
   "textPad.group.prefix": "Добавить",

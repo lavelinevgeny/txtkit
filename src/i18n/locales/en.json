@@ -175,6 +175,7 @@
   "textPad.toolbar.whitespace": "Special chars",
   "textPad.toolbar.downloadTxt": "Download .txt",
   "textPad.toolbar.uploadTxt": "Upload .txt",
+  "textPad.toolbar.operations": "Operations",
   "textPad.group.lines": "Lines",
   "textPad.group.case": "Case",
   "textPad.group.prefix": "Add",
