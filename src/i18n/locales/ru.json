@@ -166,5 +166,10 @@
   "1cBlocks.field.16": "Сеанс",
   "1cBlocks.field.17": "Номер",
   "1cBlocks.field.18": "Доп. данные",
-  "warnings.inputTruncated": "Текст обрезан до {limit} символов из {total}. {toolName} предназначен для коротких текстов."
+  "warnings.inputTruncated": "Текст обрезан до {limit} символов из {total}. {toolName} предназначен для коротких текстов.",
+  "tools.text-pad.description": "Редактор для больших текстов с поиском, заменой и быстрыми операциями.",
+  "tools.text-pad.features.largeText.description": "Редактируйте длинные тексты прямо на сайте без перехода в отдельный блокнот.",
+  "tools.text-pad.features.findReplace.description": "Ищите и заменяйте текст, включая регулярные выражения.",
+  "tools.text-pad.features.quickOps.description": "Удаляйте пустые строки, дубли, сортируйте и очищайте текст в один клик.",
+  "tools.text-pad.features.autosave.description": "Документ сохраняется локально в браузере, пока помещается в безопасный лимит."
 }

@@ -166,5 +166,10 @@
   "1cBlocks.field.16": "Session",
   "1cBlocks.field.17": "Number",
   "1cBlocks.field.18": "Ext. data",
-  "warnings.inputTruncated": "Text trimmed to {limit} of {total} characters. {toolName} is designed for short texts."
+  "warnings.inputTruncated": "Text trimmed to {limit} of {total} characters. {toolName} is designed for short texts.",
+  "tools.text-pad.description": "Editor for large texts with search, replace, and quick operations.",
+  "tools.text-pad.features.largeText.description": "Edit long texts right on the site without switching to a separate notepad.",
+  "tools.text-pad.features.findReplace.description": "Search and replace text, including regular expressions.",
+  "tools.text-pad.features.quickOps.description": "Remove blank lines and duplicates, sort, and clean up text in one click.",
+  "tools.text-pad.features.autosave.description": "The document is saved locally in the browser as long as it fits within a safe limit."
 }
