@@ -69,6 +69,26 @@ describe('toSentenceCase', () => {
   it('works with cyrillic', () => {
     expect(toSentenceCase('привет мир')).toBe('Привет мир')
   })
+
+  it('capitalizes each sentence after . ! ?', () => {
+    expect(toSentenceCase('hello. world! how are you? fine')).toBe('Hello. World! How are you? Fine')
+  })
+
+  it('capitalizes the start of each line', () => {
+    expect(toSentenceCase('first line\nsecond line')).toBe('First line\nSecond line')
+  })
+
+  it('capitalizes paragraphs separated by blank lines', () => {
+    expect(toSentenceCase('First para.\n\nsecond Para With Names.')).toBe('First para.\n\nSecond para with names.')
+  })
+
+  it('does not capitalize after a period without following space', () => {
+    expect(toSentenceCase('example.com is a site')).toBe('Example.com is a site')
+  })
+
+  it('preserves leading whitespace', () => {
+    expect(toSentenceCase('  hello. world')).toBe('  Hello. World')
+  })
 })
 
 describe('toTitleCase', () => {

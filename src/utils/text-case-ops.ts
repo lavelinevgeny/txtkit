@@ -7,7 +7,9 @@ export function toUpperCase(input: string): string {
 }
 
 export function toSentenceCase(input: string): string {
-  return input.charAt(0).toUpperCase() + input.slice(1).toLowerCase()
+  return input
+    .toLowerCase()
+    .replace(/(^\s*|[.!?]\s+|\n\s*)(\p{L})/gu, (_, boundary: string, letter: string) => boundary + letter.toUpperCase())
 }
 
 export function toTitleCase(input: string): string {
