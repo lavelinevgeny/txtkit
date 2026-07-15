@@ -235,5 +235,22 @@
   "tools.text-pad.features.largeText.description": "Редактируйте длинные тексты прямо на сайте без перехода в отдельный блокнот.",
   "tools.text-pad.features.findReplace.description": "Ищите и заменяйте текст, включая регулярные выражения.",
   "tools.text-pad.features.quickOps.description": "Удаляйте пустые строки, дубли, сортируйте и очищайте текст в один клик.",
-  "tools.text-pad.features.autosave.description": "Документ сохраняется локально в браузере, пока помещается в безопасный лимит."
+  "tools.text-pad.features.autosave.description": "Документ сохраняется локально в браузере, пока помещается в безопасный лимит.",
+  "textDiff.title": "Text Diff",
+  "textDiff.toolbar.backToTools": "← к инструментам",
+  "textDiff.toolbar.swap": "Поменять стороны",
+  "textDiff.toolbar.ignoreCase": "Игнор. регистр",
+  "textDiff.toolbar.ignoreWhitespace": "Игнор. пробелы",
+  "textDiff.toolbar.wordLevel": "По словам",
+  "textDiff.toolbar.clear": "Очистить",
+  "textDiff.input.leftPlaceholder": "Оригинал…",
+  "textDiff.input.rightPlaceholder": "Изменённый текст…",
+  "textDiff.stats.differences": "Различий: {n}",
+  "textDiff.stats.copyRight": "Копировать правый",
+  "textDiff.empty": "Вставьте тексты в обе панели, чтобы увидеть различия",
+  "tools.text-diff.description": "Сравнение двух текстов бок о бок с построчной и пословной подсветкой различий.",
+  "tools.text-diff.features.sideBySide.description": "Показывает оригинал и изменённый текст рядом, выравнивая строки и подсвечивая добавления и удаления.",
+  "tools.text-diff.features.wordLevel.description": "Внутри изменённых строк точечно выделяются конкретные различающиеся слова.",
+  "tools.text-diff.features.options.description": "Можно игнорировать регистр и пробелы по краям строк при сравнении.",
+  "tools.text-diff.features.stats.description": "Показывает число добавленных, удалённых и изменённых строк и блоков различий."
 }

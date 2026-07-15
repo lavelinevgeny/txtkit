@@ -235,5 +235,22 @@
   "tools.text-pad.features.largeText.description": "Edit long texts right on the site without switching to a separate notepad.",
   "tools.text-pad.features.findReplace.description": "Search and replace text, including regular expressions.",
   "tools.text-pad.features.quickOps.description": "Remove blank lines and duplicates, sort, and clean up text in one click.",
-  "tools.text-pad.features.autosave.description": "The document is saved locally in the browser as long as it fits within a safe limit."
+  "tools.text-pad.features.autosave.description": "The document is saved locally in the browser as long as it fits within a safe limit.",
+  "textDiff.title": "Text Diff",
+  "textDiff.toolbar.backToTools": "← to tools",
+  "textDiff.toolbar.swap": "Swap sides",
+  "textDiff.toolbar.ignoreCase": "Ignore case",
+  "textDiff.toolbar.ignoreWhitespace": "Ignore spaces",
+  "textDiff.toolbar.wordLevel": "By word",
+  "textDiff.toolbar.clear": "Clear",
+  "textDiff.input.leftPlaceholder": "Original…",
+  "textDiff.input.rightPlaceholder": "Changed text…",
+  "textDiff.stats.differences": "Differences: {n}",
+  "textDiff.stats.copyRight": "Copy right",
+  "textDiff.empty": "Paste text into both panes to see the differences",
+  "tools.text-diff.description": "Compare two texts side by side with line and word-level difference highlighting.",
+  "tools.text-diff.features.sideBySide.description": "Shows the original and the changed text next to each other, aligning lines and highlighting additions and deletions.",
+  "tools.text-diff.features.wordLevel.description": "Within changed lines, the specific differing words are highlighted individually.",
+  "tools.text-diff.features.options.description": "Comparison can ignore letter case and leading/trailing whitespace.",
+  "tools.text-diff.features.stats.description": "Reports the number of added, removed, and changed lines and difference blocks."
 }
