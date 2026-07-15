@@ -4,7 +4,7 @@ import { t } from '../i18n/translate'
 export const textDiffTool: ToolDescriptor = {
   id: 'text-diff',
   name: 'Text Diff',
-  icon: '⇄',
+  icon: '±',
   category: 'analysis',
   description: t('tools.text-diff.description'),
   view: 'custom',
