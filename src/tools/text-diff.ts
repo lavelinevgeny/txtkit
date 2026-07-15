@@ -29,5 +29,10 @@ export const textDiffTool: ToolDescriptor = {
       description: t('tools.text-diff.features.stats.description'),
       example: 'Сколько строк добавлено, удалено и изменено.',
     },
+    {
+      label: 'Навигация',
+      description: t('tools.text-diff.features.navigation.description'),
+      example: 'Синхронный скролл панелей и мини-карта различий сбоку.',
+    },
   ],
 }

@@ -242,7 +242,9 @@
   "textDiff.toolbar.ignoreCase": "Игнор. регистр",
   "textDiff.toolbar.ignoreWhitespace": "Игнор. пробелы",
   "textDiff.toolbar.wordLevel": "По словам",
+  "textDiff.toolbar.syncScroll": "Синхр. скролл",
   "textDiff.toolbar.clear": "Очистить",
+  "textDiff.minimap.label": "Карта различий",
   "textDiff.input.leftPlaceholder": "Оригинал…",
   "textDiff.input.rightPlaceholder": "Изменённый текст…",
   "textDiff.stats.differences": "Различий: {n}",
@@ -252,5 +254,6 @@
   "tools.text-diff.features.sideBySide.description": "Показывает оригинал и изменённый текст рядом, выравнивая строки и подсвечивая добавления и удаления.",
   "tools.text-diff.features.wordLevel.description": "Внутри изменённых строк точечно выделяются конкретные различающиеся слова.",
   "tools.text-diff.features.options.description": "Можно игнорировать регистр и пробелы по краям строк при сравнении.",
-  "tools.text-diff.features.stats.description": "Показывает число добавленных, удалённых и изменённых строк и блоков различий."
+  "tools.text-diff.features.stats.description": "Показывает число добавленных, удалённых и изменённых строк и блоков различий.",
+  "tools.text-diff.features.navigation.description": "Синхронный скролл панелей ввода и мини-карта различий сбоку для быстрой навигации по крупным сравнениям."
 }

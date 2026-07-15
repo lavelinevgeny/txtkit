@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../../store/useStore'
 import { useTranslation } from '../../i18n/context'
 import { copyToClipboard } from '../../utils/clipboard'
@@ -24,6 +24,14 @@ const cellBg: Record<DiffRow['op'], string> = {
   add: 'bg-success/15',
   remove: 'bg-red-400/15',
   replace: 'bg-accent/15',
+}
+
+// Solid marker colour for the mini-map ticks.
+const minimapTick: Record<DiffRow['op'], string> = {
+  equal: '',
+  add: 'bg-success/70',
+  remove: 'bg-red-400/70',
+  replace: 'bg-accent/70',
 }
 
 function Segments({ segs, op }: { segs: DiffSeg[]; op: DiffRow['op'] }) {
@@ -66,8 +74,78 @@ function Pane({
           emphasise ? cellBg[op] : cell === null ? 'bg-surface-dim/40' : ''
         }`}
       >
-        {cell !== null ? <Segments segs={cell} op={op} /> : ' '}
+        {cell !== null ? <Segments segs={cell} op={op} /> : ' '}
       </span>
+    </div>
+  )
+}
+
+interface Viewport {
+  top: number
+  height: number
+  scrollHeight: number
+}
+
+/**
+ * Location pane: a compact vertical map of the whole comparison. Each changed
+ * row is a coloured tick placed at its relative position; the highlighted box
+ * tracks the visible viewport, and clicking anywhere scrolls the diff there.
+ */
+function Minimap({
+  ops,
+  viewport,
+  onSeek,
+  label,
+}: {
+  ops: DiffRow['op'][]
+  viewport: Viewport
+  onSeek: (fraction: number) => void
+  label: string
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const total = ops.length || 1
+
+  const seekTo = useCallback(
+    (clientY: number) => {
+      const el = ref.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      const fraction = (clientY - rect.top) / rect.height
+      onSeek(Math.min(1, Math.max(0, fraction)))
+    },
+    [onSeek],
+  )
+
+  const boxTop = viewport.scrollHeight > 0 ? (viewport.top / viewport.scrollHeight) * 100 : 0
+  const boxHeight = viewport.scrollHeight > 0 ? (viewport.height / viewport.scrollHeight) * 100 : 100
+
+  return (
+    <div
+      ref={ref}
+      role="scrollbar"
+      aria-label={label}
+      aria-controls="text-diff-view"
+      aria-valuenow={Math.round(boxTop)}
+      title={label}
+      onMouseDown={(e) => {
+        e.preventDefault()
+        seekTo(e.clientY)
+      }}
+      className="relative w-3 flex-none cursor-pointer overflow-hidden rounded border border-border bg-surface-dim"
+    >
+      {ops.map((op, i) =>
+        op === 'equal' ? null : (
+          <div
+            key={i}
+            className={`absolute inset-x-0 ${minimapTick[op]}`}
+            style={{ top: `${(i / total) * 100}%`, height: `${Math.max(100 / total, 0.5)}%` }}
+          />
+        ),
+      )}
+      <div
+        className="pointer-events-none absolute inset-x-0 rounded-sm border border-accent/60 bg-accent/10"
+        style={{ top: `${boxTop}%`, height: `${Math.max(boxHeight, 3)}%` }}
+      />
     </div>
   )
 }
@@ -82,6 +160,7 @@ export function TextDiffView() {
   const [ignoreCase, setIgnoreCase] = useState(false)
   const [ignoreWhitespace, setIgnoreWhitespace] = useState(false)
   const [wordLevel, setWordLevel] = useState(true)
+  const [syncScroll, setSyncScroll] = useState(true)
 
   const rows = useMemo(
     () => diffRows(left, right, { ignoreCase, ignoreWhitespace, wordLevel }),
@@ -98,6 +177,60 @@ export function TextDiffView() {
       rightNo: row.right !== null ? ++r : null,
     }))
   }, [rows])
+
+  const ops = useMemo(() => rows.map((r) => r.op), [rows])
+
+  // --- Synchronised scrolling of the two input panes ---------------------
+  const leftInputRef = useRef<HTMLTextAreaElement>(null)
+  const rightInputRef = useRef<HTMLTextAreaElement>(null)
+  const suppressSync = useRef(false)
+
+  const handleInputScroll = useCallback(
+    (source: 'left' | 'right') => {
+      if (!syncScroll) return
+      if (suppressSync.current) {
+        suppressSync.current = false
+        return
+      }
+      const from = source === 'left' ? leftInputRef.current : rightInputRef.current
+      const to = source === 'left' ? rightInputRef.current : leftInputRef.current
+      if (!from || !to) return
+      const fromMax = from.scrollHeight - from.clientHeight
+      const toMax = to.scrollHeight - to.clientHeight
+      const ratio = fromMax > 0 ? from.scrollTop / fromMax : 0
+      const next = ratio * toMax
+      if (Math.abs(to.scrollTop - next) < 1) return
+      suppressSync.current = true
+      to.scrollTop = next
+    },
+    [syncScroll],
+  )
+
+  // --- Location pane / viewport tracking for the diff result -------------
+  const diffRef = useRef<HTMLElement>(null)
+  const [viewport, setViewport] = useState<Viewport>({ top: 0, height: 1, scrollHeight: 1 })
+
+  const measure = useCallback(() => {
+    const el = diffRef.current
+    if (!el) return
+    setViewport({ top: el.scrollTop, height: el.clientHeight, scrollHeight: el.scrollHeight })
+  }, [])
+
+  useEffect(() => {
+    measure()
+  }, [measure, numbered])
+
+  useEffect(() => {
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [measure])
+
+  const seek = useCallback((fraction: number) => {
+    const el = diffRef.current
+    if (!el) return
+    const target = fraction * el.scrollHeight - el.clientHeight / 2
+    el.scrollTop = Math.min(el.scrollHeight - el.clientHeight, Math.max(0, target))
+  }, [])
 
   const swap = () => {
     setLeft(right)
@@ -138,6 +271,12 @@ export function TextDiffView() {
             {t('textDiff.toolbar.wordLevel')}
           </button>
           <button
+            onClick={() => setSyncScroll((v) => !v)}
+            className={syncScroll ? buttonActive : buttonIdle}
+          >
+            {t('textDiff.toolbar.syncScroll')}
+          </button>
+          <button
             onClick={() => {
               setLeft('')
               setRight('')
@@ -151,15 +290,19 @@ export function TextDiffView() {
 
       <div className="grid grid-cols-2 gap-2">
         <textarea
+          ref={leftInputRef}
           value={left}
           onChange={(e) => setLeft(e.target.value)}
+          onScroll={() => handleInputScroll('left')}
           placeholder={t('textDiff.input.leftPlaceholder')}
           spellCheck={false}
           className="h-40 resize-y rounded-lg border border-border bg-[#09090b] p-3 font-mono text-xs text-text outline-none placeholder:text-muted/50 focus:border-accent/50"
         />
         <textarea
+          ref={rightInputRef}
           value={right}
           onChange={(e) => setRight(e.target.value)}
+          onScroll={() => handleInputScroll('right')}
           placeholder={t('textDiff.input.rightPlaceholder')}
           spellCheck={false}
           className="h-40 resize-y rounded-lg border border-border bg-[#09090b] p-3 font-mono text-xs text-text outline-none placeholder:text-muted/50 focus:border-accent/50"
@@ -181,23 +324,37 @@ export function TextDiffView() {
         </button>
       </div>
 
-      <section
-        data-testid="text-diff-view"
-        className="flex-1 min-h-[240px] overflow-auto rounded-lg border border-border bg-[#09090b] font-mono text-xs leading-relaxed"
-      >
-        {rows.length === 0 ? (
-          <div className="flex h-full items-center justify-center px-4 py-8 text-center text-muted">
-            {t('textDiff.empty')}
-          </div>
-        ) : (
-          numbered.map(({ row, leftNo, rightNo }, i) => (
-            <div key={i} className={`grid grid-cols-2 ${rowBg[row.op]}`}>
-              <Pane cell={row.left} lineNo={leftNo} op={row.op} side="left" />
-              <Pane cell={row.right} lineNo={rightNo} op={row.op} side="right" />
+      <div className="flex flex-1 min-h-[240px] gap-1.5">
+        <section
+          ref={diffRef}
+          id="text-diff-view"
+          data-testid="text-diff-view"
+          onScroll={measure}
+          className="min-w-0 flex-1 overflow-auto rounded-lg border border-border bg-[#09090b] font-mono text-xs leading-relaxed"
+        >
+          {rows.length === 0 ? (
+            <div className="flex h-full items-center justify-center px-4 py-8 text-center text-muted">
+              {t('textDiff.empty')}
             </div>
-          ))
+          ) : (
+            numbered.map(({ row, leftNo, rightNo }, i) => (
+              <div key={i} className={`grid grid-cols-2 ${rowBg[row.op]}`}>
+                <Pane cell={row.left} lineNo={leftNo} op={row.op} side="left" />
+                <Pane cell={row.right} lineNo={rightNo} op={row.op} side="right" />
+              </div>
+            ))
+          )}
+        </section>
+
+        {rows.length > 0 && (
+          <Minimap
+            ops={ops}
+            viewport={viewport}
+            onSeek={seek}
+            label={t('textDiff.minimap.label')}
+          />
         )}
-      </section>
+      </div>
     </div>
   )
 }
