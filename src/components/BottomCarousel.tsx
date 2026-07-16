@@ -1,11 +1,11 @@
 import { useStore } from '../store/useStore'
 import { getAllTools } from '../tools/registry'
 
-const CAROUSEL_ORDER = ['text-pad', 'text-diff', 'case', 'transforms', 'stats', 'encode', 'json', 'yaml', '1c-blocks', 'list-converter', 'mermaid']
+const CAROUSEL_ORDER = ['text-pad', 'case', 'transforms', 'stats', 'encode', 'json', 'yaml', '1c-blocks', 'list-converter', 'mermaid', 'text-diff']
 
 const TOOL_META: Record<string, { icon: string; label: string }> = {
   'text-pad': { icon: '✎', label: 'Pad' },
-  'text-diff': { icon: '⇄', label: 'Diff' },
+  'text-diff': { icon: '±', label: 'Diff' },
   'list-converter': { icon: '≡', label: 'List' },
   case: { icon: 'Aa', label: 'Case' },
   transforms: { icon: '↻', label: 'Transform' },

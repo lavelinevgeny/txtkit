@@ -11,7 +11,7 @@ import { textPadTool } from './text-pad'
 import { textDiffTool } from './text-diff'
 import { mermaidTool } from './mermaid'
 
-const tools: ToolDescriptor[] = [jsonTool, yamlTool, listConverterTool, caseTool, transformsTool, statsTool, encodeTool, blocksTool, textPadTool, textDiffTool, mermaidTool]
+const tools: ToolDescriptor[] = [jsonTool, yamlTool, listConverterTool, caseTool, transformsTool, statsTool, encodeTool, blocksTool, textPadTool, mermaidTool, textDiffTool]
 
 export function getAllTools(): ToolDescriptor[] {
   return tools
