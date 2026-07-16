@@ -1,7 +1,7 @@
 import { useStore } from '../store/useStore'
 import { getAllTools } from '../tools/registry'
 
-const CAROUSEL_ORDER = ['text-pad', 'text-diff', 'case', 'transforms', 'stats', 'encode', 'json', 'yaml', '1c-blocks', 'list-converter']
+const CAROUSEL_ORDER = ['text-pad', 'text-diff', 'case', 'transforms', 'stats', 'encode', 'json', 'yaml', '1c-blocks', 'list-converter', 'mermaid']
 
 const TOOL_META: Record<string, { icon: string; label: string }> = {
   'text-pad': { icon: '✎', label: 'Pad' },
@@ -14,6 +14,7 @@ const TOOL_META: Record<string, { icon: string; label: string }> = {
   json: { icon: '{ }', label: 'JSON' },
   yaml: { icon: 'Y:', label: 'YAML' },
   '1c-blocks': { icon: '{,}', label: '1C' },
+  mermaid: { icon: '▶', label: 'Mermaid' },
 }
 
 export function BottomCarousel() {

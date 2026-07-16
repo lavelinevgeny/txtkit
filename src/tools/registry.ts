@@ -9,8 +9,9 @@ import { blocksTool } from './1c-blocks'
 import { listConverterTool } from './list-converter'
 import { textPadTool } from './text-pad'
 import { textDiffTool } from './text-diff'
+import { mermaidTool } from './mermaid'
 
-const tools: ToolDescriptor[] = [jsonTool, yamlTool, listConverterTool, caseTool, transformsTool, statsTool, encodeTool, blocksTool, textPadTool, textDiffTool]
+const tools: ToolDescriptor[] = [jsonTool, yamlTool, listConverterTool, caseTool, transformsTool, statsTool, encodeTool, blocksTool, textPadTool, textDiffTool, mermaidTool]
 
 export function getAllTools(): ToolDescriptor[] {
   return tools

@@ -255,5 +255,17 @@
   "tools.text-diff.features.wordLevel.description": "Внутри изменённых строк точечно выделяются конкретные различающиеся слова.",
   "tools.text-diff.features.options.description": "Можно игнорировать регистр и пробелы по краям строк при сравнении.",
   "tools.text-diff.features.stats.description": "Показывает число добавленных, удалённых и изменённых строк и блоков различий.",
-  "tools.text-diff.features.navigation.description": "Синхронный скролл панелей ввода и мини-карта различий сбоку для быстрой навигации по крупным сравнениям."
+  "tools.text-diff.features.navigation.description": "Синхронный скролл панелей ввода и мини-карта различий сбоку для быстрой навигации по крупным сравнениям.",
+  "mermaid.title": "Mermaid",
+  "mermaid.toolbar.backToTools": "← к инструментам",
+  "mermaid.toolbar.zoom": "Масштаб",
+  "mermaid.toolbar.copySvg": "Копировать SVG",
+  "mermaid.rendering": "Рендеринг...",
+  "mermaid.error": "Ошибка синтаксиса",
+  "mermaid.errorLine": "строка {n}",
+  "mermaid.empty": "Введите диаграмму в синтаксисе Mermaid в основное поле ввода",
+  "tools.mermaid.description": "Визуализация диаграмм из текста в синтаксисе Mermaid",
+  "tools.mermaid.features.textToDiagram.description": "Преобразует текстовое описание диаграммы в векторную графику SVG.",
+  "tools.mermaid.features.formats.description": "Поддерживает flowchart, sequence, class, state, ER, Gantt, pie и другие типы диаграмм.",
+  "tools.mermaid.features.autoRefresh.description": "Диаграмма автоматически обновляется при изменении текста с задержкой 400 мс."
 }
