@@ -2,31 +2,35 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import mermaid from 'mermaid'
 import { useStore } from '../../store/useStore'
 import { useTranslation } from '../../i18n/context'
+import { copyToClipboard } from '../../utils/clipboard'
 
 const buttonBase =
   'rounded-lg border px-2.5 py-1.5 text-xs font-mono transition-colors focus:outline-none focus:ring-2 focus:ring-accent/30'
 const buttonIdle = `${buttonBase} border-border-dim bg-surface-dim text-muted hover:border-accent/40 hover:text-accent`
 const buttonActive = `${buttonBase} border-accent/60 bg-accent/15 text-accent`
+const buttonDanger = `${buttonBase} border-border-dim bg-surface-dim text-muted hover:border-red-400/40 hover:text-red-300`
+
+const SAMPLE = 'graph TD\n  A[Начало] --> B{Условие}\n  B -->|да| C[Действие]\n  B -->|нет| D[Конец]'
 
 export default function MermaidView() {
   const { t } = useTranslation()
-  const input = useStore((s) => s.input)
+  const sourceInput = useStore((s) => s.input)
   const setActiveToolId = useStore((s) => s.setActiveToolId)
 
+  const [code, setCode] = useState(sourceInput)
   const [svg, setSvg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [zoomed, setZoomed] = useState(false)
 
   const renderIdRef = useRef(0)
-  const containerRef = useRef<HTMLDivElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
 
     timerRef.current = setTimeout(async () => {
-      const trimmed = input.trim()
+      const trimmed = code.trim()
       if (!trimmed) {
         setSvg(null)
         setError(null)
@@ -62,7 +66,7 @@ export default function MermaidView() {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [input])
+  }, [code])
 
   const errorLine = useCallback(() => {
     if (!error) return null
@@ -88,19 +92,7 @@ export default function MermaidView() {
     return error
   }, [error])
 
-  const handleCopySvg = useCallback(() => {
-    if (!svg) return
-    navigator.clipboard.writeText(svg).catch(() => {
-      const textarea = document.createElement('textarea')
-      textarea.value = svg
-      textarea.style.position = 'fixed'
-      textarea.style.opacity = '0'
-      document.body.appendChild(textarea)
-      textarea.select()
-      document.execCommand('copy')
-      document.body.removeChild(textarea)
-    })
-  }, [svg])
+  const lineCount = code === '' ? 0 : code.split('\n').length
 
   return (
     <div className="w-full max-w-none flex-1 flex flex-col min-h-0 gap-2">
@@ -114,61 +106,91 @@ export default function MermaidView() {
         </div>
 
         <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
-          {svg && (
-            <>
-              <button
-                onClick={() => setZoomed((z) => !z)}
-                className={zoomed ? buttonActive : buttonIdle}
-              >
-                {t('mermaid.toolbar.zoom')}
-              </button>
-              <button onClick={handleCopySvg} className={buttonIdle}>
-                {t('mermaid.toolbar.copySvg')}
-              </button>
-            </>
-          )}
+          <button onClick={() => setCode(SAMPLE)} className={buttonIdle}>
+            {t('mermaid.toolbar.sample')}
+          </button>
+          <button
+            onClick={() => setZoomed((z) => !z)}
+            disabled={!svg}
+            className={`${zoomed ? buttonActive : buttonIdle} disabled:opacity-40 disabled:hover:border-border-dim disabled:hover:text-muted`}
+          >
+            {t('mermaid.toolbar.zoom')}
+          </button>
+          <button
+            onClick={() => void copyToClipboard(svg ?? '')}
+            disabled={!svg}
+            className={`${buttonIdle} disabled:opacity-40 disabled:hover:border-border-dim disabled:hover:text-muted`}
+          >
+            {t('mermaid.toolbar.copySvg')}
+          </button>
+          <button onClick={() => setCode('')} className={buttonDanger}>
+            {t('mermaid.toolbar.clear')}
+          </button>
         </div>
       </header>
 
-      <div
-        ref={containerRef}
-        className={`flex-1 min-h-[300px] overflow-auto rounded-lg border border-border bg-[#09090b] p-4 ${
-          zoomed ? 'flex items-start justify-center' : ''
-        }`}
-      >
-        {loading && !svg && (
-          <div className="flex h-full w-full items-center justify-center text-muted font-mono text-xs">
-            {t('mermaid.rendering')}
+      <div className="grid flex-1 min-h-[320px] grid-cols-1 gap-2 md:grid-cols-2">
+        <section className="flex min-h-[240px] min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-[#09090b]">
+          <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-[10px] font-mono text-muted">
+            <span className="text-text">{t('mermaid.pane.code')}</span>
+            <span className="ml-auto">{t('mermaid.stats.lines', { n: lineCount })}</span>
           </div>
-        )}
-
-        {!loading && error && (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-2">
-            <span className="text-red-400 font-mono text-xs">{t('mermaid.error')}</span>
-            <span className="text-muted font-mono text-xs">
-              {errorMessage()}
-              {errorLine() && (
-                <span>
-                  {' — '}
-                  {t('mermaid.errorLine', { n: errorLine()! })}
-                </span>
-              )}
-            </span>
-          </div>
-        )}
-
-        {!loading && !error && !svg && (
-          <div className="flex h-full w-full items-center justify-center text-muted font-mono text-xs">
-            {t('mermaid.empty')}
-          </div>
-        )}
-
-        {svg && (
-          <div
-            dangerouslySetInnerHTML={{ __html: svg }}
-            className={zoomed ? 'mermaid-svg [&>svg]:max-w-none' : 'mermaid-svg'}
+          <textarea
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder={t('mermaid.input.placeholder')}
+            spellCheck={false}
+            data-testid="mermaid-code"
+            className="min-h-0 flex-1 resize-none bg-transparent p-3 font-mono text-xs leading-relaxed text-text outline-none placeholder:text-muted/50"
           />
-        )}
+        </section>
+
+        <section className="flex min-h-[240px] min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-[#09090b]">
+          <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-[10px] font-mono text-muted">
+            <span className="text-text">{t('mermaid.pane.preview')}</span>
+            {loading && <span className="ml-auto">{t('mermaid.rendering')}</span>}
+            {!loading && error && <span className="ml-auto text-red-300">{t('mermaid.error')}</span>}
+          </div>
+
+          <div
+            data-testid="mermaid-preview"
+            className={`min-h-0 flex-1 overflow-auto p-4 ${zoomed ? 'flex items-start justify-center' : ''}`}
+          >
+            {loading && !svg && (
+              <div className="flex h-full w-full items-center justify-center font-mono text-xs text-muted">
+                {t('mermaid.rendering')}
+              </div>
+            )}
+
+            {!loading && error && (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-4 text-center">
+                <span className="font-mono text-xs text-red-400">{t('mermaid.error')}</span>
+                <span className="font-mono text-xs text-muted">
+                  {errorMessage()}
+                  {errorLine() && (
+                    <span>
+                      {' — '}
+                      {t('mermaid.errorLine', { n: errorLine()! })}
+                    </span>
+                  )}
+                </span>
+              </div>
+            )}
+
+            {!loading && !error && !svg && (
+              <div className="flex h-full w-full items-center justify-center px-4 text-center font-mono text-xs text-muted">
+                {t('mermaid.empty')}
+              </div>
+            )}
+
+            {svg && !error && (
+              <div
+                dangerouslySetInnerHTML={{ __html: svg }}
+                className={zoomed ? 'mermaid-svg [&>svg]:max-w-none' : 'mermaid-svg'}
+              />
+            )}
+          </div>
+        </section>
       </div>
     </div>
   )

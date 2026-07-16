@@ -24,5 +24,10 @@ export const mermaidTool: ToolDescriptor = {
       description: t('tools.mermaid.features.autoRefresh.description'),
       example: 'Диаграмма обновляется автоматически при изменении текста.',
     },
+    {
+      label: 'Свой редактор',
+      description: t('tools.mermaid.features.splitView.description'),
+      example: 'Слева редактор кода, справа живой предпросмотр диаграммы.',
+    },
   ],
 }

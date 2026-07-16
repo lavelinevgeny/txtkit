@@ -260,12 +260,19 @@
   "mermaid.toolbar.backToTools": "← к инструментам",
   "mermaid.toolbar.zoom": "Масштаб",
   "mermaid.toolbar.copySvg": "Копировать SVG",
+  "mermaid.toolbar.sample": "Пример",
+  "mermaid.toolbar.clear": "Очистить",
+  "mermaid.pane.code": "Код",
+  "mermaid.pane.preview": "Диаграмма",
+  "mermaid.input.placeholder": "graph TD\n  A --> B",
+  "mermaid.stats.lines": "строк: {n}",
   "mermaid.rendering": "Рендеринг...",
   "mermaid.error": "Ошибка синтаксиса",
   "mermaid.errorLine": "строка {n}",
-  "mermaid.empty": "Введите диаграмму в синтаксисе Mermaid в основное поле ввода",
+  "mermaid.empty": "Введите диаграмму в синтаксисе Mermaid в левой панели",
   "tools.mermaid.description": "Визуализация диаграмм из текста в синтаксисе Mermaid",
   "tools.mermaid.features.textToDiagram.description": "Преобразует текстовое описание диаграммы в векторную графику SVG.",
   "tools.mermaid.features.formats.description": "Поддерживает flowchart, sequence, class, state, ER, Gantt, pie и другие типы диаграмм.",
-  "tools.mermaid.features.autoRefresh.description": "Диаграмма автоматически обновляется при изменении текста с задержкой 400 мс."
+  "tools.mermaid.features.autoRefresh.description": "Диаграмма автоматически обновляется при изменении текста с задержкой 400 мс.",
+  "tools.mermaid.features.splitView.description": "Собственный редактор кода слева и предпросмотр справа, независимо от основного поля ввода."
 }

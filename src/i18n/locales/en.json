@@ -260,12 +260,19 @@
   "mermaid.toolbar.backToTools": "← to tools",
   "mermaid.toolbar.zoom": "Zoom",
   "mermaid.toolbar.copySvg": "Copy SVG",
+  "mermaid.toolbar.sample": "Sample",
+  "mermaid.toolbar.clear": "Clear",
+  "mermaid.pane.code": "Code",
+  "mermaid.pane.preview": "Diagram",
+  "mermaid.input.placeholder": "graph TD\n  A --> B",
+  "mermaid.stats.lines": "lines: {n}",
   "mermaid.rendering": "Rendering...",
   "mermaid.error": "Syntax error",
   "mermaid.errorLine": "line {n}",
-  "mermaid.empty": "Enter a Mermaid syntax diagram in the main input field",
+  "mermaid.empty": "Enter a Mermaid syntax diagram in the left pane",
   "tools.mermaid.description": "Visualize diagrams from text using Mermaid syntax",
   "tools.mermaid.features.textToDiagram.description": "Converts textual diagram descriptions into SVG vector graphics.",
   "tools.mermaid.features.formats.description": "Supports flowchart, sequence, class, state, ER, Gantt, pie, and other diagram types.",
-  "tools.mermaid.features.autoRefresh.description": "The diagram updates automatically as you type, with a 400ms delay."
+  "tools.mermaid.features.autoRefresh.description": "The diagram updates automatically as you type, with a 400ms delay.",
+  "tools.mermaid.features.splitView.description": "A dedicated code editor on the left and a live preview on the right, independent of the main input field."
 }
