@@ -1,22 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
-import { EditorView, lineNumbers, highlightSpecialChars, drawSelection, keymap } from '@codemirror/view'
-import { Compartment, EditorState } from '@codemirror/state'
-import { history, defaultKeymap, historyKeymap } from '@codemirror/commands'
-import { bracketMatching, indentOnInput } from '@codemirror/language'
-import {
-  search,
-  SearchQuery,
-  setSearchQuery as cmSetSearchQuery,
-  findNext as cmFindNext,
-  findPrevious as cmFindPrevious,
-  replaceNext as cmReplaceNext,
-  replaceAll as cmReplaceAll,
-  highlightSelectionMatches,
-} from '@codemirror/search'
+import { EditorView, highlightSpecialChars } from '@codemirror/view'
+import { SearchQuery, setSearchQuery as cmSetSearchQuery, findNext as cmFindNext, findPrevious as cmFindPrevious, replaceNext as cmReplaceNext, replaceAll as cmReplaceAll } from '@codemirror/search'
+
 import { useStore } from '../../store/useStore'
 import { useTranslation } from '../../i18n/context'
+import { useTextPadStore } from '../text-pad/useTextPadStore'
+import { enqueueDocumentWrite } from '../text-pad/useDocumentWriteQueue'
+import {
+  enqueueWorkspaceMutation,
+  resumeWorkspacePersistence,
+  setRecoverySnapshotFn,
+  clearRecoverySnapshotFn,
+} from '../text-pad/useWorkspaceQueue'
+import { getWorkspace, getAllDocuments } from '../../db/textPadRepository'
+import { TextPadTabBar } from '../../components/TextPadTabBar'
+import { createEditorState, wrappingCompartment, whitespaceCompartment } from '../text-pad/editorStateFactory'
+import { getTextPadStats } from './textPadStats'
+import { downloadTextFile, downloadJsonBackup } from './textPadFile'
 import { copyToClipboard } from '../../utils/clipboard'
+
 import {
   removeEmptyLines,
   removeDuplicateLines,
@@ -28,77 +31,369 @@ import {
 import { toLowerCase, toUpperCase, toSentenceCase, toTitleCase } from '../../utils/text-case-ops'
 import { htmlEscape, htmlUnescape, urlEncode, urlDecode } from '../../utils/text-encode-ops'
 import { formatJson, minifyJson } from '../../utils/text-format-ops'
-import { getTextPadStats } from './textPadStats'
-import { downloadTextFile } from './textPadFile'
 
-const wrappingCompartment = new Compartment()
-const whitespaceCompartment = new Compartment()
+import type {
+  RuntimeTabState,
+  ClosedTabUndoEntry,
+  DocumentRecord,
+  DocumentContentPatch,
+  WorkspaceRecord,
+  PersistenceStatus,
+} from '../text-pad/types'
 
-const textPadTheme = EditorView.theme(
-  {
-    '&': {
-      height: '100%',
-      backgroundColor: '#09090b',
-      color: '#e4e4e7',
-      fontSize: '13px',
-    },
-    '.cm-scroller': {
-      fontFamily: 'var(--font-mono)',
-      lineHeight: '1.65',
-      overflow: 'auto',
-    },
-    '.cm-content': {
-      minHeight: '100%',
-      padding: '14px 0',
-      caretColor: '#e8a030',
-    },
-    '.cm-line': {
-      padding: '0 18px 0 12px',
-    },
-    '.cm-gutters': {
-      backgroundColor: '#18181b',
-      color: '#71717a',
-      borderRight: '1px solid #27272a',
-    },
-    '.cm-lineNumbers .cm-gutterElement': {
-      padding: '0 10px 0 12px',
-      minWidth: '38px',
-    },
-    '.cm-activeLine': {
-      backgroundColor: 'rgba(232, 160, 48, 0.07)',
-    },
-    '.cm-activeLineGutter': {
-      backgroundColor: 'rgba(232, 160, 48, 0.12)',
-      color: '#e4e4e7',
-    },
-    '&.cm-focused': {
-      outline: 'none',
-    },
-    '&.cm-focused .cm-cursor': {
-      borderLeftColor: '#e8a030',
-    },
-    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection': {
-      backgroundColor: 'rgba(232, 160, 48, 0.28)',
-    },
-    '.cm-searchMatch': {
-      backgroundColor: 'rgba(96, 165, 250, 0.28)',
-      outline: '1px solid rgba(96, 165, 250, 0.45)',
-    },
-    '.cm-searchMatch-selected': {
-      backgroundColor: 'rgba(232, 160, 48, 0.38)',
-    },
-    '.cm-selectionMatch': {
-      backgroundColor: 'rgba(232, 160, 48, 0.18)',
-    },
-    '.cm-selectionMatch-main': {
-      backgroundColor: 'rgba(232, 160, 48, 0.32)',
-    },
-    '.cm-searchMatch .cm-selectionMatch': {
-      backgroundColor: 'transparent',
-    },
-  },
-  { dark: true },
-)
+// =====================================================================
+// Module-level bootstrap. Pure function — returns data, does NOT touch
+// any React refs or state. Each TextPadView instance applies the result.
+// Memoized so React Strict Mode (mount → unmount → re-mount) only runs
+// the actual IndexedDB bootstrap once.
+// =====================================================================
+
+interface BootstrapResult {
+  activeTabId: string | null
+  openTabIds: string[]
+  tabsById: Record<string, { title: string }>
+  nextUntitledNumber: number
+  persistenceStatus: PersistenceStatus
+  currentRevisionById: Record<string, number>
+  savedRevisionById: Record<string, number>
+  saveErrorById: Record<string, boolean>
+  documents: DocumentRecord[]
+}
+
+// Normalization guarantees the database invariant after the first successful
+// run: a workspace exists, it has at least one openTabId, every openTabId has
+// a matching document, and activeTabId is one of the openTabIds.
+//
+// Normalization is memoized at module level so React Strict Mode
+// (mount -> unmount -> re-mount) cannot trigger a second migration or a
+// second initial-document creation. If normalization throws, the cache is
+// cleared so the next attempt retries.
+//
+// Document loading is intentionally NOT memoized: every mount reads fresh
+// workspace + documents so leaving and reopening Text Pad cannot restore a
+// stale snapshot.
+interface NormalizationResult {
+  persistenceStatus: PersistenceStatus
+  // Present only when normalization produced a snapshot that could NOT be
+  // committed to IndexedDB. loadBootstrapResult uses these directly instead
+  // of re-reading an empty database.
+  memoryOnlyWorkspace?: WorkspaceRecord
+  memoryOnlyDocuments?: DocumentRecord[]
+}
+
+let normalizationPromise: Promise<NormalizationResult> | null = null
+
+export function resetTextPadBootstrapForTests(): void {
+  normalizationPromise = null
+}
+
+// Called after successful recovery so the next mount does not
+// serve a stale memory-only normalization snapshot.
+export function invalidateTextPadNormalization(): void {
+  normalizationPromise = null
+}
+
+function ensureNormalized(): Promise<NormalizationResult> {
+  if (!normalizationPromise) {
+    normalizationPromise = runNormalization()
+      .then((result) => {
+        // save-error is retryable — do not cache so the next mount
+        // re-attempts the repair. memory-only structural snapshots
+        // MUST stay cached for Strict Mode.
+        if (result.persistenceStatus === 'save-error') {
+          normalizationPromise = null
+        }
+        return result
+      })
+      .catch((error) => {
+        normalizationPromise = null
+        throw error
+      })
+  }
+  return normalizationPromise
+}
+
+const LEGACY_KEY = 'txtkit-editor-doc'
+
+async function runNormalization(): Promise<NormalizationResult> {
+  const legacy = window.localStorage.getItem(LEGACY_KEY)
+  const workspace = await getWorkspace()
+  const documents = await getAllDocuments()
+  const documentIds = new Set(documents.map((doc) => doc.id))
+
+  const validOpenIds =
+    workspace?.openTabIds.filter((id) => documentIds.has(id)) ?? []
+
+  const needsMigration =
+    !workspace || !workspace.migrations.legacyLocalStorageMigrationCompleted
+
+  // Case 1: legacy text needs migrating into a new document.
+  if (needsMigration && legacy && legacy.length > 0) {
+    return migrateLegacy(workspace, documents, validOpenIds, legacy)
+  }
+
+  // Case 2: no valid open tabs — first launch (or all tabs pointed at
+  // deleted documents). Create the initial pad right here, inside the
+  // memoized normalization, so Strict Mode cannot create a second one.
+  if (validOpenIds.length === 0) {
+    return createInitialDocument(workspace)
+  }
+
+  // Case 3: workspace exists with valid tabs but may need repair.
+  // Repair is required when:
+  //  - openTabIds reference vanished documents (already filtered above),
+  //  - activeTabId points to an invalid or missing tab,
+  //  - migration flag is still off.
+  // The repair is a workspace-only commit; a failure leaves existing
+  // documents readable and transitions to 'save-error'.
+  if (workspace && validOpenIds.length > 0) {
+    const normalizedActiveId =
+      workspace.activeTabId &&
+      validOpenIds.includes(workspace.activeTabId)
+        ? workspace.activeTabId
+        : validOpenIds[0]
+
+    const openIdsChanged =
+      validOpenIds.length !== workspace.openTabIds.length ||
+      validOpenIds.some((id, i) => id !== workspace.openTabIds[i])
+
+    const activeChanged =
+      normalizedActiveId !== workspace.activeTabId
+
+    const migrationChanged =
+      !workspace.migrations.legacyLocalStorageMigrationCompleted
+
+    if (openIdsChanged || activeChanged || migrationChanged) {
+      const normalizedWorkspace: WorkspaceRecord = {
+        ...workspace,
+        openTabIds: validOpenIds,
+        activeTabId: normalizedActiveId,
+        migrations: {
+          legacyLocalStorageMigrationCompleted: true,
+        },
+      }
+
+      try {
+        await enqueueWorkspaceMutation({
+          workspace: normalizedWorkspace,
+        })
+        return { persistenceStatus: 'ready' }
+      } catch {
+        return { persistenceStatus: 'save-error' }
+      }
+    }
+  }
+
+  return { persistenceStatus: 'ready' }
+}
+
+async function migrateLegacy(
+  workspace: WorkspaceRecord | undefined,
+  existingDocuments: DocumentRecord[],
+  validOpenIds: string[],
+  legacy: string,
+): Promise<NormalizationResult> {
+  const id = crypto.randomUUID()
+  const number = workspace?.nextUntitledNumber ?? 1
+  const now = Date.now()
+
+  const document: DocumentRecord = {
+    id,
+    title: `pad${number}`,
+    content: legacy,
+    selection: null,
+    scrollTop: 0,
+    contentRevision: 0,
+    createdAt: now,
+    updatedAt: now,
+  }
+
+  // Append the new legacy document to existing valid open tabs so
+  // migration never silently removes tabs the user already had open.
+  const nextWorkspace: WorkspaceRecord = {
+    key: 'current',
+    activeTabId: id,
+    openTabIds: [
+      ...validOpenIds.filter((existingId) => existingId !== id),
+      id,
+    ],
+    nextUntitledNumber: number + 1,
+    migrations: { legacyLocalStorageMigrationCompleted: true },
+  }
+
+  try {
+    await enqueueWorkspaceMutation({
+      workspace: nextWorkspace,
+      putDocuments: [document],
+      createdDocumentIds: [id],
+    })
+    window.localStorage.removeItem(LEGACY_KEY)
+    return { persistenceStatus: 'ready' }
+  } catch {
+    // Keep legacy text in localStorage as a backup. Return the snapshot
+    // so loadBootstrapResult can render it from memory.
+    // Include existing documents for the valid open tabs in the
+    // memory-only snapshot so the UI does not hide them when the
+    // legacy-commit itself fails.
+    return {
+      persistenceStatus: 'memory-only',
+      memoryOnlyWorkspace: nextWorkspace,
+      memoryOnlyDocuments: [
+        ...existingDocuments.filter((existing) =>
+          validOpenIds.includes(existing.id),
+        ),
+        document,
+      ],
+    }
+  }
+}
+
+async function createInitialDocument(
+  workspace: WorkspaceRecord | undefined,
+): Promise<NormalizationResult> {
+  const id = crypto.randomUUID()
+  const number = workspace?.nextUntitledNumber ?? 1
+  const now = Date.now()
+
+  const document: DocumentRecord = {
+    id,
+    title: `pad${number}`,
+    content: '',
+    selection: null,
+    scrollTop: 0,
+    contentRevision: 0,
+    createdAt: now,
+    updatedAt: now,
+  }
+
+  const nextWorkspace: WorkspaceRecord = {
+    key: 'current',
+    activeTabId: id,
+    openTabIds: [id],
+    nextUntitledNumber: number + 1,
+    migrations: { legacyLocalStorageMigrationCompleted: true },
+  }
+
+  try {
+    await enqueueWorkspaceMutation({
+      workspace: nextWorkspace,
+      putDocuments: [document],
+      createdDocumentIds: [id],
+    })
+    return { persistenceStatus: 'ready' }
+  } catch {
+    return {
+      persistenceStatus: 'memory-only',
+      memoryOnlyWorkspace: nextWorkspace,
+      memoryOnlyDocuments: [document],
+    }
+  }
+}
+
+interface LoadResult {
+  workspace: WorkspaceRecord | undefined
+  documents: DocumentRecord[]
+  persistenceStatus: PersistenceStatus
+}
+
+function buildBootstrapResult(data: LoadResult): BootstrapResult {
+  const { workspace, documents: allDocs, persistenceStatus } = data
+  const docMap = new Map(allDocs.map((d) => [d.id, d]))
+
+  const validIds = (workspace?.openTabIds ?? []).filter((id) => docMap.has(id))
+  let activeId = workspace?.activeTabId ?? null
+  if (activeId && !validIds.includes(activeId)) {
+    activeId = validIds[0] ?? null
+  }
+  if (!activeId && validIds.length > 0) {
+    activeId = validIds[0]
+  }
+
+  const tabs: Record<string, { title: string }> = {}
+  const currentRev: Record<string, number> = {}
+  const savedRev: Record<string, number> = {}
+  const errors: Record<string, boolean> = {}
+  const documents: DocumentRecord[] = []
+
+  for (const id of validIds) {
+    const d = docMap.get(id)!
+    const persistedRevision =
+      Number.isFinite(d.contentRevision) ? d.contentRevision : 0
+
+    tabs[id] = { title: d.title }
+    documents.push(d)
+    currentRev[id] = persistedRevision
+    savedRev[id] = persistedRevision
+    errors[id] = false
+  }
+
+  // Pure: no writes, no mutations, no status guessing. persistenceStatus
+  // is decided by normalization and passed through unchanged.
+  return {
+    activeTabId: activeId,
+    openTabIds: validIds,
+    tabsById: tabs,
+    nextUntitledNumber: workspace?.nextUntitledNumber ?? 1,
+    persistenceStatus,
+    currentRevisionById: currentRev,
+    savedRevisionById: savedRev,
+    saveErrorById: errors,
+    documents,
+  }
+}
+
+// Module-level reconciliation for close-commit success. Extracted so the
+// close/undo race conditions can be unit-tested without rendering React.
+//
+// On a successful workspace commit for a closed tab:
+//   - if the tab is still in the undo list, bump its savedRevision;
+//   - if the tab was already restored via Undo, mark it saved ONLY when
+//     the store's current revision still equals the committed revision.
+//     Using === (not <=) prevents marking a tab saved at a revision it
+//     has already advanced past.
+export function reconcileClosedDocumentCommit(
+  id: string,
+  committedRevision: number,
+  undoEntries: Map<string, ClosedTabUndoEntry>,
+): void {
+  const entry = undoEntries.get(id)
+  if (entry) {
+    entry.savedRevision = Math.max(entry.savedRevision, committedRevision)
+    return
+  }
+  const state = useTextPadStore.getState()
+  if (
+    state.openTabIds.includes(id) &&
+    (state.currentRevisionById[id] ?? -1) === committedRevision
+  ) {
+    state.markSaved(id, committedRevision)
+  }
+}
+
+// Each mount calls this. Normalization is cached; the fresh DB read is not.
+async function loadBootstrapResult(): Promise<BootstrapResult> {
+  const normalization = await ensureNormalized()
+
+  if (
+    normalization.memoryOnlyWorkspace &&
+    normalization.memoryOnlyDocuments
+  ) {
+    return buildBootstrapResult({
+      workspace: normalization.memoryOnlyWorkspace,
+      documents: normalization.memoryOnlyDocuments,
+      persistenceStatus: 'memory-only',
+    })
+  }
+
+  const workspace = await getWorkspace()
+  const documents = await getAllDocuments()
+
+  return buildBootstrapResult({
+    workspace,
+    documents,
+    persistenceStatus: normalization.persistenceStatus,
+  })
+}
 
 const buttonBase =
   'rounded-lg border px-2.5 py-1.5 text-xs font-mono transition-colors focus:outline-none focus:ring-2 focus:ring-accent/30'
@@ -109,161 +404,249 @@ const inputClass =
   'h-8 w-28 rounded-lg border border-border-dim bg-surface-dim px-2 text-xs font-mono text-text outline-none placeholder:text-muted/50 focus:border-accent/50'
 
 export function TextPadView() {
-  const hostRef = useRef<HTMLDivElement>(null)
-  const viewRef = useRef<EditorView | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const sourceInput = useStore((s) => s.input)
-  const sourceInputRef = useRef(sourceInput)
-  const editorDoc = useStore((s) => s.editorDoc)
-  const setEditorDoc = useStore((s) => s.setEditorDoc)
-  const editorDocRef = useRef(editorDoc)
+  // ---- Global store (prefs only) ----
   const editorPrefs = useStore((s) => s.editorPrefs)
   const setEditorPrefs = useStore((s) => s.setEditorPrefs)
   const setActiveToolId = useStore((s) => s.setActiveToolId)
-  const editorAutosaveWarning = useStore((s) => s.editorAutosaveWarning)
-  const clearEditorAutosaveWarning = useStore((s) => s.clearEditorAutosaveWarning)
   const { t } = useTranslation()
-  const [prefix, setPrefix] = useState('')
-  const [suffix, setSuffix] = useState('')
-  const [operationsOpen, setOperationsOpen] = useState(false)
-  const [pendingSourceInput, setPendingSourceInput] = useState<string | null>(() =>
-    sourceInput.length > 0 && editorDoc.length > 0 && sourceInput !== editorDoc ? sourceInput : null,
-  )
-  const [goToLineOpen, setGoToLineOpen] = useState(false)
-  const [goToLineValue, setGoToLineValue] = useState('')
-  const [goToLineError, setGoToLineError] = useState('')
-  const [goToLineTotal, setGoToLineTotal] = useState(0)
-  const goToLineOpenRef = useRef<() => void>(() => {})
-  const goToLineInputRef = useRef<HTMLInputElement>(null)
 
-  const [searchOpen, setSearchOpen] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [replaceText, setReplaceText] = useState('')
-  const [caseSensitive, setCaseSensitive] = useState(false)
-  const [formatError, setFormatError] = useState<string | null>(null)
-  const searchInputRef = useRef<HTMLInputElement>(null)
-  const searchOpenRef = useRef<() => void>(() => {})
+  // ---- TextPad store ----
+  const store = useTextPadStore
+  const activeTabId = store((s) => s.activeTabId)
+  const tabsById = store((s) => s.tabsById)
+  const persistenceStatus = store((s) => s.persistenceStatus)
 
-  const stats = useMemo(() => getTextPadStats(editorDoc), [editorDoc])
+  // ---- Refs ----
+  const rootRef = useRef<HTMLDivElement>(null)
+  const hostRef = useRef<HTMLDivElement>(null)
+  const viewRef = useRef<EditorView | null>(null)
+  const runtimeTabs = useRef(new Map<string, RuntimeTabState>())
+  const undoEntries = useRef(new Map<string, ClosedTabUndoEntry>())
+  const undoTimeouts = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  const lastUpdatedAtById = useRef(new Map<string, number>())
+  const activeTabIdRef = useRef<string | null>(null)
+  const sessionGenerationById = useRef(new Map<string, number>())
+  const disposed = useRef(false)
+  const currentRAF = useRef<number | null>(null)
+  const savingRef = useRef(new Map<string, boolean>())
+  const debounceTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  const [initialized, setInitialized] = useState(false)
+  const [undoList, setUndoList] = useState<Array<{ id: string; title: string }>>([])
+  const [documentVersion, setDocumentVersion] = useState(0)
 
-  useEffect(() => {
-    editorDocRef.current = editorDoc
-  })
+  // Keep ref in sync
+  activeTabIdRef.current = activeTabId
 
-  useEffect(() => {
-    if (sourceInput.length === 0 || sourceInput === editorDocRef.current) {
-      setPendingSourceInput(null)
-      return
-    }
-    setPendingSourceInput(sourceInput)
-  }, [sourceInput])
+  const editorPrefsRef = useRef(editorPrefs)
+  editorPrefsRef.current = editorPrefs
 
-  useEffect(() => {
-    if (!hostRef.current) return
+  // ---- Helpers ----
 
-    const initialSourceInput = sourceInputRef.current
-    if (editorDocRef.current.length === 0 && initialSourceInput.length > 0) {
-      editorDocRef.current = initialSourceInput
-      setEditorDoc(initialSourceInput)
-      setPendingSourceInput(null)
-    }
+  function getLoggerRevision(tabId: string): number {
+    return store.getState().currentRevisionById[tabId] ?? 0
+  }
 
-    const state = EditorState.create({
-      doc: editorDocRef.current,
-      extensions: [
-        textPadTheme,
-        lineNumbers(),
-        whitespaceCompartment.of(editorPrefs.showWhitespace ? highlightSpecialChars() : []),
-        drawSelection(),
-        EditorState.allowMultipleSelections.of(true),
-        indentOnInput(),
-        bracketMatching(),
-        history(),
-        highlightSelectionMatches(),
-        search(),
-        wrappingCompartment.of(editorPrefs.lineWrapping ? EditorView.lineWrapping : []),
-        keymap.of([...defaultKeymap, ...historyKeymap, {
-          key: 'Mod-Alt-g',
-          run: () => {
-            goToLineOpenRef.current()
-            return true
-          },
-          preventDefault: true,
-        }, {
-          key: 'Mod-f',
-          run: () => {
-            searchOpenRef.current()
-            return true
-          },
-          preventDefault: true,
-        }]),
-        EditorView.updateListener.of((update) => {
-          if (update.docChanged) {
-            setEditorDoc(update.state.doc.toString())
-          }
-        }),
-      ],
-    })
+  function getSavedRevision(tabId: string): number {
+    return store.getState().savedRevisionById[tabId] ?? 0
+  }
 
-    const view = new EditorView({ state, parent: hostRef.current })
-    viewRef.current = view
+  function isDirty(tabId: string): boolean {
+    return getLoggerRevision(tabId) > getSavedRevision(tabId)
+  }
 
-    return () => {
-      view.destroy()
-      viewRef.current = null
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setEditorDoc])
-
-  useEffect(() => {
-    viewRef.current?.dispatch({
-      effects: wrappingCompartment.reconfigure(editorPrefs.lineWrapping ? EditorView.lineWrapping : []),
-    })
-  }, [editorPrefs.lineWrapping])
-
-  useEffect(() => {
-    viewRef.current?.dispatch({
-      effects: whitespaceCompartment.reconfigure(editorPrefs.showWhitespace ? highlightSpecialChars() : []),
-    })
-  }, [editorPrefs.showWhitespace])
-
-  useEffect(() => {
-    goToLineOpenRef.current = () => {
-      const view = viewRef.current
-      if (!view) return
-      const { head } = view.state.selection.main
-      const line = view.state.doc.lineAt(head)
-      setGoToLineValue(String(line.number))
-      setGoToLineTotal(view.state.doc.lines)
-      setGoToLineError('')
-      setSearchOpen(false)
-      setGoToLineOpen(true)
-      setTimeout(() => goToLineInputRef.current?.focus(), 0)
-    }
-  })
-
-  useEffect(() => {
-    searchOpenRef.current = () => {
-      const view = viewRef.current
-      if (!view) return
-      const { from, to } = view.state.selection.main
-      const selected = from !== to ? view.state.sliceDoc(from, to) : ''
-      if (selected.length > 0 && selected.length < 200) {
-        setSearchTerm(selected)
+  function captureDocument(tabId: string): DocumentContentPatch | null {
+    const contentRevision = getLoggerRevision(tabId)
+    const currentActive = activeTabIdRef.current
+    if (currentActive === tabId && viewRef.current) {
+      return {
+        content: viewRef.current.state.doc.toString(),
+        selection: viewRef.current.state.selection.toJSON(),
+        scrollTop: viewRef.current.scrollDOM.scrollTop,
+        contentRevision,
+        updatedAt: nextDocumentUpdatedAt(tabId),
       }
-      setGoToLineOpen(false)
-      setSearchOpen(true)
-      setTimeout(() => searchInputRef.current?.focus(), 0)
     }
-  })
+    const rt = runtimeTabs.current.get(tabId)
+    if (!rt) return null
+    return {
+      content: rt.editorState.doc.toString(),
+      selection: rt.editorState.selection.toJSON(),
+      scrollTop: rt.scrollTop,
+      contentRevision,
+      updatedAt: nextDocumentUpdatedAt(tabId),
+    }
+  }
 
-  useEffect(() => {
+  function captureRuntimeTabState(id: string): RuntimeTabState | null {
+    const currentActive = activeTabIdRef.current
+    const existing = runtimeTabs.current.get(id)
+    if (id === currentActive && viewRef.current) {
+      return {
+        editorState: viewRef.current.state,
+        scrollTop: viewRef.current.scrollDOM.scrollTop,
+        title: store.getState().tabsById[id]?.title ?? existing?.title ?? '',
+        createdAt: existing?.createdAt ?? Date.now(),
+      }
+    }
+    return existing ?? null
+  }
+
+  function bumpSessionGeneration(id: string): void {
+    const current = sessionGenerationById.current.get(id) ?? 0
+    sessionGenerationById.current.set(id, current + 1)
+  }
+
+  function getSessionGeneration(id: string): number {
+    return sessionGenerationById.current.get(id) ?? 0
+  }
+
+  function nextDocumentUpdatedAt(id: string): number {
+    const previous = lastUpdatedAtById.current.get(id) ?? 0
+    const next = Math.max(Date.now(), previous + 1)
+    lastUpdatedAtById.current.set(id, next)
+    return next
+  }
+
+  function canSave(_tabId: string): boolean {
+    const s = store.getState()
+    if (s.persistenceStatus === 'quota-error') return false
+    if (s.persistenceStatus === 'memory-only') return false
+    if (disposed.current) return false
+    return true
+  }
+
+  function buildRecoverySnapshots(): DocumentRecord[] {
+    const s = store.getState()
+    const result: DocumentRecord[] = []
+    for (const id of s.openTabIds) {
+      const patch = captureDocument(id)
+      const rt = runtimeTabs.current.get(id)
+      if (!patch || !rt) continue
+      result.push({
+        id,
+        title: s.tabsById[id]?.title ?? id,
+        content: patch.content,
+        selection: patch.selection,
+        scrollTop: patch.scrollTop,
+        contentRevision: patch.contentRevision,
+        createdAt: rt.createdAt,
+        updatedAt: patch.updatedAt,
+      })
+    }
+    return result
+  }
+
+  // Unified helper: switch active tab, restore scroll, focus editor.
+  // Used by handleSelectTab, handleCloseTab, handleUndoClose.
+  function activateRuntimeTab(id: string, runtime: RuntimeTabState): void {
+    activeTabIdRef.current = id
     const view = viewRef.current
-    if (!view || !searchOpen) return
-    view.dispatch({
-      effects: cmSetSearchQuery.of(new SearchQuery({ search: searchTerm, replace: replaceText, caseSensitive })),
+    if (!view) return
+    view.setState(runtime.editorState)
+    if (currentRAF.current !== null) cancelAnimationFrame(currentRAF.current)
+    const restoreId = id
+    const restoreScroll = runtime.scrollTop
+    currentRAF.current = requestAnimationFrame(() => {
+      if (activeTabIdRef.current === restoreId && viewRef.current) {
+        viewRef.current.scrollDOM.scrollTop = restoreScroll
+        viewRef.current.focus()
+      }
+      currentRAF.current = null
     })
-  }, [searchTerm, replaceText, caseSensitive, searchOpen])
+  }
+
+  // ---- Initial load effect ----
+  // Normalization is memoized at module level so Strict Mode does not
+  // duplicate migration or initial-document creation.
+  // Workspace and documents are read fresh for every component mount,
+  // so leaving and reopening Text Pad cannot restore a stale snapshot.
+  useEffect(() => {
+    let cancelled = false
+
+    const run = async () => {
+      try {
+        const result = await loadBootstrapResult()
+        if (cancelled) return
+
+        // Clear any leftover runtime state from a prior instance before
+        // hydrating, so re-mounts (Strict Mode or route changes) cannot
+        // accumulate stale runtime tabs.
+        runtimeTabs.current.clear()
+        lastUpdatedAtById.current.clear()
+
+        // Apply result to THIS instance's store + refs.
+        // workspaceSaveError is reset here — a stale error from a
+        // previous instance must not survive remount.
+        store.setState({
+          activeTabId: result.activeTabId,
+          openTabIds: result.openTabIds,
+          tabsById: result.tabsById,
+          nextUntitledNumber: result.nextUntitledNumber,
+          persistenceStatus: result.persistenceStatus,
+          currentRevisionById: result.currentRevisionById,
+          savedRevisionById: result.savedRevisionById,
+          saveErrorById: result.saveErrorById,
+          workspaceSaveError: false,
+        })
+
+        // Seed updatedAt clock from persisted records and build runtime tabs
+        for (const doc of result.documents) {
+          lastUpdatedAtById.current.set(doc.id, doc.updatedAt)
+          const state = createEditorState({
+            doc: doc.content,
+            selection: doc.selection,
+            lineWrapping: editorPrefs.lineWrapping,
+            showWhitespace: editorPrefs.showWhitespace,
+          })
+          runtimeTabs.current.set(doc.id, {
+            editorState: state,
+            scrollTop: doc.scrollTop,
+            title: doc.title,
+            createdAt: doc.createdAt,
+          })
+        }
+
+        setRecoverySnapshotFn(() => buildRecoverySnapshots())
+        setInitialized(true)
+      } catch {
+        if (cancelled) return
+        // Memory-only fallback — clear any stale runtime state first.
+        runtimeTabs.current.clear()
+        lastUpdatedAtById.current.clear()
+        store.getState().setPersistenceStatus('memory-only')
+        const docId = crypto.randomUUID()
+        const createdAt = Date.now()
+        lastUpdatedAtById.current.set(docId, createdAt)
+        const state = createEditorState({
+          doc: '',
+          lineWrapping: editorPrefs.lineWrapping,
+          showWhitespace: editorPrefs.showWhitespace,
+        })
+        runtimeTabs.current.set(docId, {
+          editorState: state,
+          scrollTop: 0,
+          title: 'pad1',
+          createdAt,
+        })
+        store.setState({
+          activeTabId: docId,
+          openTabIds: [docId],
+          tabsById: { [docId]: { title: 'pad1' } },
+          nextUntitledNumber: 2,
+          persistenceStatus: 'memory-only',
+          currentRevisionById: { [docId]: 0 },
+          savedRevisionById: { [docId]: 0 },
+          saveErrorById: { [docId]: false },
+          workspaceSaveError: false,
+        })
+        setRecoverySnapshotFn(() => buildRecoverySnapshots())
+        setInitialized(true)
+      }
+    }
+
+    run()
+    return () => { cancelled = true }
+  }, [])
 
   const handleCopy = () => {
     void copyToClipboard(viewRef.current?.state.doc.toString() ?? '')
