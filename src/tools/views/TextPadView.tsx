@@ -648,6 +648,199 @@ export function TextPadView() {
     return () => { cancelled = true }
   }, [])
 
+  // ---- Save loop ----
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- helpers read fresh state via refs/store.getState()
+  const startSaveLoop = useCallback(
+    (tabId: string) => {
+      if (savingRef.current.get(tabId)) return
+      if (!canSave(tabId)) return
+
+      savingRef.current.set(tabId, true)
+      const gen = getSessionGeneration(tabId)
+      const run = async () => {
+        try {
+          while (isDirty(tabId) && canSave(tabId)) {
+            const revision = getLoggerRevision(tabId)
+            const patch = captureDocument(tabId)
+            if (!patch) break
+
+            try {
+              const result = await enqueueDocumentWrite(tabId, patch)
+              if (result === 'superseded') continue
+              if (getSessionGeneration(tabId) !== gen) break
+              store.getState().markSaved(tabId, revision)
+              store.getState().setSaveError(tabId, false)
+              store.getState().checkSaveErrorRecovery()
+            } catch (err: unknown) {
+              if (err instanceof DOMException && err.name === 'QuotaExceededError') {
+                store.getState().setPersistenceStatus('quota-error')
+                store.getState().setSaveError(tabId, true)
+                break
+              }
+
+              store.getState().setSaveError(tabId, true)
+
+              // memory-only and quota-error are sticky. A document-level
+              // write failure must not downgrade them to retryable save-error.
+              const s = store.getState()
+              if (
+                s.persistenceStatus === 'memory-only' ||
+                s.persistenceStatus === 'quota-error'
+              ) {
+                break
+              }
+
+              store.getState().setPersistenceStatus('save-error')
+
+              await new Promise((r) => setTimeout(r, 2000))
+
+              // After the delay the app may have transitioned to a sticky
+              // state (e.g. creation commit for a new tab failed).
+              if (!canSave(tabId)) break
+
+              const latestRev = getLoggerRevision(tabId)
+              if (latestRev !== revision) continue
+
+              try {
+                const retryResult = await enqueueDocumentWrite(tabId, patch)
+                if (retryResult === 'superseded') continue
+                if (getSessionGeneration(tabId) !== gen) break
+                store.getState().markSaved(tabId, revision)
+                store.getState().setSaveError(tabId, false)
+                store.getState().checkSaveErrorRecovery()
+              } catch {
+                store.getState().setSaveError(tabId, true)
+                break
+              }
+            }
+          }
+        } finally {
+          savingRef.current.set(tabId, false)
+          // If the session generation changed (close → undo → edit),
+          // a new save loop may need to start for the same tab id.
+          if (
+            getSessionGeneration(tabId) !== gen &&
+            isDirty(tabId) &&
+            canSave(tabId)
+          ) {
+            startSaveLoop(tabId)
+          }
+        }
+      }
+      void run()
+    },
+    [],
+  )
+
+  // ---- CodeMirror setup ----
+  // Created once after bootstrap. Tab switching uses view.setState(), never recreates the view.
+  useEffect(() => {
+    if (!hostRef.current || !initialized) return
+
+    disposed.current = false
+
+    const activeId = activeTabIdRef.current
+    let state: import('@codemirror/state').EditorState
+    if (activeId && runtimeTabs.current.has(activeId)) {
+      state = runtimeTabs.current.get(activeId)!.editorState
+    } else {
+      state = createEditorState({ doc: '' })
+    }
+
+    const view = new EditorView({
+      state,
+      parent: hostRef.current,
+      dispatchTransactions: (trs) => {
+        view.update(trs)
+
+        const tabId = activeTabIdRef.current
+        if (!tabId) return
+
+        // ALWAYS update runtime cache. Note: scroll is NOT covered by transactions;
+        // it's captured explicitly on switch/hidden/unmount.
+        const existing = runtimeTabs.current.get(tabId)
+        runtimeTabs.current.set(tabId, {
+          editorState: view.state,
+          scrollTop: view.scrollDOM.scrollTop,
+          title: store.getState().tabsById[tabId]?.title ?? existing?.title ?? '',
+          createdAt: existing?.createdAt ?? Date.now(),
+        })
+
+        // Revision bump + debounce only on content change
+        if (trs.some((tr) => tr.docChanged)) {
+          store.getState().bumpRevision(tabId)
+          setDocumentVersion((v) => v + 1)
+
+          if (debounceTimers.current.has(tabId)) {
+            clearTimeout(debounceTimers.current.get(tabId))
+          }
+          debounceTimers.current.set(
+            tabId,
+            setTimeout(() => {
+              debounceTimers.current.delete(tabId)
+              startSaveLoop(tabId)
+            }, 300),
+          )
+        }
+      },
+    })
+    viewRef.current = view
+
+    return () => {
+      // Capture final runtime state before destroy
+      const currentId = activeTabIdRef.current
+      if (currentId && viewRef.current) {
+        const existing = runtimeTabs.current.get(currentId)
+        runtimeTabs.current.set(currentId, {
+          editorState: viewRef.current.state,
+          scrollTop: viewRef.current.scrollDOM.scrollTop,
+          title: store.getState().tabsById[currentId]?.title ?? existing?.title ?? '',
+          createdAt: existing?.createdAt ?? Date.now(),
+        })
+      }
+      view.destroy()
+      viewRef.current = null
+    }
+  }, [initialized])
+
+  // ---- Sync CodeMirror prefs (apply to ALL runtime tabs) ----
+  useEffect(() => {
+    if (!viewRef.current) return
+    viewRef.current.dispatch({
+      effects: wrappingCompartment.reconfigure(
+        editorPrefs.lineWrapping ? EditorView.lineWrapping : [],
+      ),
+    })
+    // Update non-active runtime states so they stay consistent on switch
+    for (const [id, runtime] of runtimeTabs.current) {
+      if (id === activeTabIdRef.current) continue
+      const tr = runtime.editorState.update({
+        effects: wrappingCompartment.reconfigure(
+          editorPrefs.lineWrapping ? EditorView.lineWrapping : [],
+        ),
+      })
+      runtimeTabs.current.set(id, { ...runtime, editorState: tr.state })
+    }
+  }, [editorPrefs.lineWrapping])
+
+  useEffect(() => {
+    if (!viewRef.current) return
+    viewRef.current.dispatch({
+      effects: whitespaceCompartment.reconfigure(
+        editorPrefs.showWhitespace ? highlightSpecialChars() : [],
+      ),
+    })
+    for (const [id, runtime] of runtimeTabs.current) {
+      if (id === activeTabIdRef.current) continue
+      const tr = runtime.editorState.update({
+        effects: whitespaceCompartment.reconfigure(
+          editorPrefs.showWhitespace ? highlightSpecialChars() : [],
+        ),
+      })
+      runtimeTabs.current.set(id, { ...runtime, editorState: tr.state })
+    }
+  }, [editorPrefs.showWhitespace])
+
   const handleCopy = () => {
     void copyToClipboard(viewRef.current?.state.doc.toString() ?? '')
   }
