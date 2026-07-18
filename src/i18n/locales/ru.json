@@ -274,5 +274,21 @@
   "tools.mermaid.features.textToDiagram.description": "Преобразует текстовое описание диаграммы в векторную графику SVG.",
   "tools.mermaid.features.formats.description": "Поддерживает flowchart, sequence, class, state, ER, Gantt, pie и другие типы диаграмм.",
   "tools.mermaid.features.autoRefresh.description": "Диаграмма автоматически обновляется при изменении текста с задержкой 400 мс.",
-  "tools.mermaid.features.splitView.description": "Собственный редактор кода слева и предпросмотр справа, независимо от основного поля ввода."
+  "tools.mermaid.features.splitView.description": "Собственный редактор кода слева и предпросмотр справа, независимо от основного поля ввода.",
+  "textPad.tabs.newTab": "Новая вкладка",
+  "textPad.tabs.closeTab": "Закрыть вкладку",
+  "textPad.tabs.nextTab": "Следующая вкладка",
+  "textPad.tabs.prevTab": "Предыдущая вкладка",
+  "textPad.undo.closeTab": "Вкладка «{title}» закрыта.",
+  "textPad.undo.restore": "Отменить",
+  "textPad.quota.title": "Хранилище заполнено",
+  "textPad.quota.exportCurrent": "Скачать текущую",
+  "textPad.quota.exportAll": "Скачать все документы",
+  "textPad.quota.deleteClosed": "Удалить закрытые",
+  "textPad.quota.deleteConfirm": "Удалить {count} закрытых документов? Рекомендуется сначала экспортировать.",
+  "textPad.quota.deleted": "Удалено {count} документов.",
+  "textPad.quota.sizeLabel": "Примерный размер: {size}",
+  "textPad.quota.noClosed": "Нет закрытых документов для удаления.",
+  "textPad.memoryOnly": "Автосохранение недоступно. Экспортируйте документы вручную.",
+  "textPad.persistence.retry": "Повторить сохранение"
 }
