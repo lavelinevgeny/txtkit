@@ -277,6 +277,8 @@
   "tools.mermaid.features.splitView.description": "A dedicated code editor on the left and a live preview on the right, independent of the main input field.",
   "textPad.tabs.newTab": "New tab",
   "textPad.tabs.closeTab": "Close tab",
+  "textPad.tabs.moreTabs": "More tabs",
+  "textPad.tabs.closeTabFromMenu": "Close {title}",
   "textPad.tabs.nextTab": "Next tab",
   "textPad.tabs.prevTab": "Previous tab",
   "textPad.undo.closeTab": "Tab \"{title}\" closed.",

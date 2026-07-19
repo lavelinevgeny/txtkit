@@ -20,9 +20,30 @@ import {
 } from '../src/tools/views/TextPadView'
 
 class MockResizeObserver {
+  private static instances: MockResizeObserver[] = []
+  private readonly callback: ResizeObserverCallback
+
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback
+    MockResizeObserver.instances.push(this)
+  }
+
+  static trigger(width: number) {
+    for (const observer of MockResizeObserver.instances) {
+      observer.callback(
+        [{ contentRect: { width } as DOMRectReadOnly } as ResizeObserverEntry],
+        observer as unknown as ResizeObserver,
+      )
+    }
+  }
+
   observe() {}
   unobserve() {}
-  disconnect() {}
+  disconnect() {
+    MockResizeObserver.instances = MockResizeObserver.instances.filter(
+      (observer) => observer !== this,
+    )
+  }
 }
 
 function renderTextPad() {
@@ -101,6 +122,39 @@ describe('TextPadView', () => {
     expect(screen.getByTestId('text-pad-tab-bar')).toBeInTheDocument()
     await waitForEditor()
     expect(useTextPadStore.getState().openTabIds.length).toBeGreaterThan(0)
+  })
+
+  it('places responsive tabs immediately above the editor and promotes overflow tabs', async () => {
+    renderTextPad()
+    await waitForEditor()
+
+    act(() => {
+      useTextPadStore.setState({
+        activeTabId: 'pad1',
+        openTabIds: ['pad1', 'pad2', 'pad3', 'pad4'],
+        tabsById: {
+          pad1: { title: 'pad1' },
+          pad2: { title: 'pad2' },
+          pad3: { title: 'pad3' },
+          pad4: { title: 'pad4' },
+        },
+      })
+      MockResizeObserver.trigger(320)
+    })
+
+    const tabBar = screen.getByTestId('text-pad-tab-bar')
+    expect(tabBar.nextElementSibling).toHaveAttribute('data-testid', 'text-pad-editor-host')
+
+    fireEvent.click(screen.getByRole('button', { name: 'More tabs' }))
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'pad4' }))
+
+    expect(screen.getByRole('button', { name: 'pad4' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'More tabs' }))
+    expect(screen.getByRole('menuitem', { name: 'pad2' })).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(screen.getByRole('button', { name: 'New tab' })).toBeInTheDocument()
   })
 
   it('keeps one persisted replacement after repeated close of the last tab', async () => {

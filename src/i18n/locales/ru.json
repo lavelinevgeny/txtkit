@@ -277,6 +277,8 @@
   "tools.mermaid.features.splitView.description": "Собственный редактор кода слева и предпросмотр справа, независимо от основного поля ввода.",
   "textPad.tabs.newTab": "Новая вкладка",
   "textPad.tabs.closeTab": "Закрыть вкладку",
+  "textPad.tabs.moreTabs": "Ещё вкладки",
+  "textPad.tabs.closeTabFromMenu": "Закрыть {title}",
   "textPad.tabs.nextTab": "Следующая вкладка",
   "textPad.tabs.prevTab": "Предыдущая вкладка",
   "textPad.undo.closeTab": "Вкладка «{title}» закрыта.",
