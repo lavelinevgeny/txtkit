@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { EditorView } from '@codemirror/view'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import 'fake-indexeddb/auto'
 import { I18nProvider } from '../src/i18n/context'
 import { useStore } from '../src/store/useStore'
@@ -46,6 +46,14 @@ function openGoToLineDialog(container: HTMLElement) {
   expect(editor).toBeInstanceOf(HTMLElement)
   fireEvent.click(screen.getByRole('button', { name: 'Go to line' }))
   return editor as HTMLElement
+}
+
+function getClickHandler(element: HTMLElement): () => void {
+  const propsKey = Object.keys(element).find((key) => key.startsWith('__reactProps$'))
+  if (!propsKey) throw new Error('React click handler not found')
+  const props = (element as unknown as Record<string, { onClick?: () => void }>)[propsKey]
+  if (!props?.onClick) throw new Error('React click handler not found')
+  return props.onClick
 }
 
 beforeAll(() => {
@@ -95,13 +103,18 @@ describe('TextPadView', () => {
     expect(useTextPadStore.getState().openTabIds.length).toBeGreaterThan(0)
   })
 
-  it('resets the replacement tab to pad1 after closing the last tab', async () => {
+  it('keeps one persisted replacement after repeated close of the last tab', async () => {
     renderTextPad()
     await waitForEditor()
     const closedId = useTextPadStore.getState().activeTabId
     expect(closedId).not.toBeNull()
+    const closeButton = screen.getByTestId(`close-tab-${closedId}`)
+    const close = getClickHandler(closeButton)
 
-    fireEvent.click(screen.getByTestId(`close-tab-${closedId}`))
+    act(() => {
+      close()
+      close()
+    })
 
     await waitFor(() => {
       const state = useTextPadStore.getState()
@@ -109,6 +122,24 @@ describe('TextPadView', () => {
       expect(state.openTabIds[0]).not.toBe(closedId)
       expect(state.tabsById[state.openTabIds[0]!]?.title).toBe('pad1')
       expect(state.nextUntitledNumber).toBe(2)
+    })
+
+    await waitFor(async () => {
+      const state = useTextPadStore.getState()
+      const replacementId = state.openTabIds[0]!
+      const workspace = await getWorkspace()
+      expect(state.openTabIds).toEqual([replacementId])
+      expect(workspace).toMatchObject({
+        activeTabId: replacementId,
+        openTabIds: [replacementId],
+        nextUntitledNumber: 2,
+      })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'New tab' }))
+    await waitFor(() => {
+      const state = useTextPadStore.getState()
+      expect(state.tabsById[state.activeTabId!]?.title).toBe('pad2')
     })
   })
 

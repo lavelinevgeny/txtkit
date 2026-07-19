@@ -997,6 +997,8 @@ export function TextPadView() {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- helpers read fresh state via refs/store.getState()
   const handleCloseTab = useCallback((id: string) => {
     const s = store.getState()
+    if (!s.openTabIds.includes(id)) return
+
     const isLastTab = s.openTabIds.length === 1
     const rt = captureRuntimeTabState(id)
     const patch = captureDocument(id)
