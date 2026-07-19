@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components, react-hooks/refs, react-hooks/set-state-in-effect, react-hooks/preserve-manual-memoization */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { EditorView, highlightSpecialChars } from '@codemirror/view'
@@ -433,12 +434,47 @@ export function TextPadView() {
   const [initialized, setInitialized] = useState(false)
   const [undoList, setUndoList] = useState<Array<{ id: string; title: string }>>([])
   const [documentVersion, setDocumentVersion] = useState(0)
+  const [prefix, setPrefix] = useState('')
+  const [suffix, setSuffix] = useState('')
+  const [operationsOpen, setOperationsOpen] = useState(false)
+  const [goToLineOpen, setGoToLineOpen] = useState(false)
+  const [goToLineValue, setGoToLineValue] = useState('')
+  const [goToLineError, setGoToLineError] = useState('')
+  const [goToLineTotal, setGoToLineTotal] = useState(0)
+  const goToLineInputRef = useRef<HTMLInputElement>(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [replaceText, setReplaceText] = useState('')
+  const [caseSensitive, setCaseSensitive] = useState(false)
+  const [formatError, setFormatError] = useState<string | null>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const sourceInput = useStore((s) => s.input)
+  const [pendingSourceInput, setPendingSourceInput] = useState<string | null>(() =>
+    sourceInput.length > 0 ? sourceInput : null,
+  )
 
   // Keep ref in sync
   activeTabIdRef.current = activeTabId
 
   const editorPrefsRef = useRef(editorPrefs)
   editorPrefsRef.current = editorPrefs
+
+  const stats = useMemo(() => {
+    const text = viewRef.current?.state.doc.toString() ?? ''
+    return getTextPadStats(text)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTabId, documentVersion])
+
+  useEffect(() => {
+    if (sourceInput.length > 0) setPendingSourceInput(sourceInput)
+  }, [sourceInput])
+
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    view.dispatch({ effects: cmSetSearchQuery.of(new SearchQuery({ search: searchTerm, replace: replaceText, caseSensitive })) })
+  }, [searchTerm, replaceText, caseSensitive])
 
   // ---- Helpers ----
 
@@ -507,7 +543,8 @@ export function TextPadView() {
     return next
   }
 
-  function canSave(_tabId: string): boolean {
+  function canSave(tabId: string): boolean {
+    void tabId
     const s = store.getState()
     if (s.persistenceStatus === 'quota-error') return false
     if (s.persistenceStatus === 'memory-only') return false
@@ -841,6 +878,304 @@ export function TextPadView() {
     }
   }, [editorPrefs.showWhitespace])
 
+  function persistWorkspaceInBackground(
+    workspace: WorkspaceRecord,
+    putDocuments?: DocumentRecord[],
+    createdDocumentIds?: string[],
+  ): void {
+    void enqueueWorkspaceMutation({ workspace, putDocuments, createdDocumentIds }).catch(() => {})
+  }
+
+  /** Returns the promise so callers can bump savedRevision on success. */
+  function persistWorkspace(
+    workspace: WorkspaceRecord,
+    putDocuments?: DocumentRecord[],
+    createdDocumentIds?: string[],
+  ): Promise<void> {
+    return enqueueWorkspaceMutation({ workspace, putDocuments, createdDocumentIds })
+  }
+
+  // ---- Tab actions: select ----
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- helpers read fresh state via refs/store.getState()
+  const handleSelectTab = useCallback((id: string) => {
+    if (id === activeTabIdRef.current) return
+
+    const currentId = activeTabIdRef.current
+    if (currentId) {
+      const rt = captureRuntimeTabState(currentId)
+      if (rt) runtimeTabs.current.set(currentId, rt)
+    }
+
+    store.getState().setActiveTab(id)
+    const target = runtimeTabs.current.get(id)
+    if (target) activateRuntimeTab(id, target)
+
+    const s = store.getState()
+    persistWorkspaceInBackground({
+      key: 'current',
+      activeTabId: id,
+      openTabIds: [...s.openTabIds],
+      nextUntitledNumber: s.nextUntitledNumber,
+      migrations: { legacyLocalStorageMigrationCompleted: true },
+    })
+
+    // Persist selection/scroll for the tab we're leaving.
+    // If content is dirty, the save loop handles everything (including metadata).
+    // If content is clean, do a metadata-only write.
+    if (currentId && canSave(currentId)) {
+      if (isDirty(currentId)) {
+        startSaveLoop(currentId)
+      } else {
+        const metaPatch = captureDocument(currentId)
+        if (metaPatch) {
+          void enqueueDocumentWrite(currentId, metaPatch).catch(() => {})
+        }
+      }
+    }
+  }, [])
+
+  // ---- Persistence recovery (shared between quota and memory-only) ----
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- helpers read fresh state via refs/store.getState()
+  const handleRetryPersistence = useCallback(async () => {
+    try {
+      await resumeWorkspacePersistence()
+      invalidateTextPadNormalization()
+      const state = store.getState()
+      if (state.persistenceStatus === 'memory-only') {
+        state.clearStickyPersistenceError('memory-only')
+      } else if (state.persistenceStatus === 'quota-error') {
+        state.clearStickyPersistenceError('quota-error')
+      }
+      for (const id of store.getState().openTabIds) {
+        if (isDirty(id) && canSave(id)) startSaveLoop(id)
+      }
+    } catch {
+      // Documents remain available for export when recovery fails.
+    }
+  }, [])
+
+  // ---- Tab actions: create ----
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- helpers read fresh state via refs/store.getState()
+  const handleNewTab = useCallback(() => {
+    const s = store.getState()
+    const nextNum = s.nextUntitledNumber
+    const title = `pad${nextNum}`
+    const id = crypto.randomUUID()
+    const createdAt = Date.now()
+    const state = createEditorState({
+      doc: '',
+      lineWrapping: editorPrefsRef.current.lineWrapping,
+      showWhitespace: editorPrefsRef.current.showWhitespace,
+    })
+    lastUpdatedAtById.current.set(id, createdAt)
+    runtimeTabs.current.set(id, { editorState: state, scrollTop: 0, title, createdAt })
+    activeTabIdRef.current = id
+    store.getState().addTab(id, title, nextNum + 1)
+
+    if (viewRef.current) {
+      viewRef.current.setState(state)
+      viewRef.current.focus()
+    }
+
+    void persistWorkspace(
+      {
+        key: 'current',
+        activeTabId: id,
+        openTabIds: [...store.getState().openTabIds],
+        nextUntitledNumber: nextNum + 1,
+        migrations: { legacyLocalStorageMigrationCompleted: true },
+      },
+      [{
+        id, title, content: '', selection: null, scrollTop: 0,
+        contentRevision: 0, createdAt, updatedAt: createdAt,
+      }],
+      [id],
+    ).catch(() => {})
+  }, [])
+
+  // ---- Tab actions: close ----
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- helpers read fresh state via refs/store.getState()
+  const handleCloseTab = useCallback((id: string) => {
+    const s = store.getState()
+    const isLastTab = s.openTabIds.length === 1
+    const rt = captureRuntimeTabState(id)
+    const patch = captureDocument(id)
+    const index = s.openTabIds.indexOf(id)
+    const currentRev = getLoggerRevision(id)
+    const savedRev = getSavedRevision(id)
+    const title = s.tabsById[id]?.title ?? id
+    const debounceTimer = debounceTimers.current.get(id)
+    if (debounceTimer) {
+      clearTimeout(debounceTimer)
+      debounceTimers.current.delete(id)
+    }
+
+    const closedDocRecord: DocumentRecord | null = patch
+      ? {
+          id, title, content: patch.content, selection: patch.selection,
+          scrollTop: patch.scrollTop, contentRevision: currentRev,
+          createdAt: rt?.createdAt ?? Date.now(), updatedAt: patch.updatedAt,
+        }
+      : null
+
+    let newId: string | null = null
+    let newState: RuntimeTabState | null = null
+    let nextUntitledNumber = s.nextUntitledNumber
+    if (isLastTab) {
+      const number = s.nextUntitledNumber
+      newId = crypto.randomUUID()
+      const createdAt = Date.now()
+      const newTitle = `pad${number}`
+      const editorState = createEditorState({
+        doc: '',
+        lineWrapping: editorPrefsRef.current.lineWrapping,
+        showWhitespace: editorPrefsRef.current.showWhitespace,
+      })
+      newState = { editorState, scrollTop: 0, title: newTitle, createdAt }
+      lastUpdatedAtById.current.set(newId, createdAt)
+      runtimeTabs.current.set(newId, newState)
+      activeTabIdRef.current = newId
+      store.getState().addTab(newId, newTitle, number + 1)
+      nextUntitledNumber = number + 1
+    }
+
+    const result = store.getState().closeTab(id)
+    if (!result) return
+    if (rt) {
+      undoEntries.current.set(id, { id, index, runtimeState: rt, currentRevision: currentRev, savedRevision: savedRev })
+    }
+    bumpSessionGeneration(id)
+    runtimeTabs.current.delete(id)
+
+    if (isLastTab && newId && newState) {
+      activateRuntimeTab(newId, newState)
+    } else if (s.activeTabId === id) {
+      const newActiveId = store.getState().activeTabId
+      const target = newActiveId ? runtimeTabs.current.get(newActiveId) : undefined
+      if (newActiveId && target) activateRuntimeTab(newActiveId, target)
+    }
+
+    const timeout = setTimeout(() => {
+      undoEntries.current.delete(id)
+      undoTimeouts.current.delete(id)
+      setUndoList((previous) => previous.filter((entry) => entry.id !== id))
+    }, 5000)
+    undoTimeouts.current.set(id, timeout)
+    setUndoList((previous) => [...previous, { id, title }])
+
+    const replacement: DocumentRecord[] = newId && newState
+      ? [{
+          id: newId, title: newState.title, content: '', selection: null,
+          scrollTop: 0, contentRevision: 0, createdAt: newState.createdAt,
+          updatedAt: newState.createdAt,
+        }]
+      : []
+    void persistWorkspace(
+      {
+        key: 'current', activeTabId: store.getState().activeTabId,
+        openTabIds: [...store.getState().openTabIds], nextUntitledNumber,
+        migrations: { legacyLocalStorageMigrationCompleted: true },
+      },
+      [...(closedDocRecord ? [closedDocRecord] : []), ...replacement],
+      newId ? [newId] : [],
+    ).then(() => {
+      reconcileClosedDocumentCommit(id, currentRev, undoEntries.current)
+    }).catch(() => {})
+  }, [])
+
+  // ---- Undo close ----
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- helpers read fresh state via refs/store.getState()
+  const handleUndoClose = useCallback((id: string) => {
+    const entry = undoEntries.current.get(id)
+    if (!entry) return
+    bumpSessionGeneration(id)
+    const timeout = undoTimeouts.current.get(id)
+    if (timeout) {
+      clearTimeout(timeout)
+      undoTimeouts.current.delete(id)
+    }
+    activeTabIdRef.current = id
+    store.getState().undoCloseTab(id, entry.index, entry.runtimeState.title, entry.currentRevision, entry.savedRevision)
+    runtimeTabs.current.set(id, entry.runtimeState)
+    undoEntries.current.delete(id)
+    setUndoList((previous) => previous.filter((item) => item.id !== id))
+    activateRuntimeTab(id, entry.runtimeState)
+    const s = store.getState()
+    persistWorkspaceInBackground({
+      key: 'current', activeTabId: id, openTabIds: [...s.openTabIds],
+      nextUntitledNumber: s.nextUntitledNumber,
+      migrations: { legacyLocalStorageMigrationCompleted: true },
+    })
+  }, [])
+
+  // ---- Lifecycle: visibility change ----
+  useEffect(() => {
+    const handler = () => {
+      if (document.visibilityState !== 'hidden') return
+      const currentId = activeTabIdRef.current
+      if (currentId) {
+        const runtime = captureRuntimeTabState(currentId)
+        if (runtime) runtimeTabs.current.set(currentId, runtime)
+      }
+      for (const id of store.getState().openTabIds) {
+        const patch = captureDocument(id)
+        if (patch) void enqueueDocumentWrite(id, patch).catch(() => {})
+      }
+    }
+    document.addEventListener('visibilitychange', handler)
+    return () => document.removeEventListener('visibilitychange', handler)
+  }, [])
+
+  // ---- Lifecycle: unmount cleanup ----
+  useEffect(() => () => {
+    disposed.current = true
+    for (const timer of debounceTimers.current.values()) clearTimeout(timer)
+    debounceTimers.current.clear()
+    for (const timer of undoTimeouts.current.values()) clearTimeout(timer)
+    undoTimeouts.current.clear()
+    undoEntries.current.clear()
+    const currentId = activeTabIdRef.current
+    if (currentId) {
+      const runtime = captureRuntimeTabState(currentId)
+      if (runtime) runtimeTabs.current.set(currentId, runtime)
+    }
+    for (const id of store.getState().openTabIds) {
+      const patch = captureDocument(id)
+      if (patch) void enqueueDocumentWrite(id, patch).catch(() => {})
+    }
+    clearRecoverySnapshotFn()
+  }, [])
+
+  // ---- Keyboard shortcuts ----
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || (target.isContentEditable && !target.closest('.cm-editor'))) return
+      if (!rootRef.current?.contains(target)) return
+      if (event.altKey && event.shiftKey && event.code === 'KeyN') {
+        event.preventDefault()
+        handleNewTab()
+      } else if (event.altKey && event.shiftKey && event.code === 'KeyW') {
+        event.preventDefault()
+        const id = store.getState().activeTabId
+        if (id) handleCloseTab(id)
+      } else if (event.altKey && event.shiftKey && (event.code === 'ArrowRight' || event.code === 'ArrowLeft')) {
+        event.preventDefault()
+        const state = store.getState()
+        const index = state.openTabIds.indexOf(state.activeTabId ?? '')
+        const offset = event.code === 'ArrowRight' ? 1 : -1
+        const id = state.openTabIds[(index + offset + state.openTabIds.length) % state.openTabIds.length]
+        if (id) handleSelectTab(id)
+      } else if (event.altKey && event.shiftKey && event.code >= 'Digit1' && event.code <= 'Digit9') {
+        event.preventDefault()
+        const id = store.getState().openTabIds[Number(event.code.slice(-1)) - 1]
+        if (id) handleSelectTab(id)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [handleNewTab, handleCloseTab, handleSelectTab])
+
   const handleCopy = () => {
     void copyToClipboard(viewRef.current?.state.doc.toString() ?? '')
   }
@@ -1022,7 +1357,12 @@ export function TextPadView() {
   }
 
   return (
-    <div className="w-full max-w-none flex-1 flex flex-col min-h-0 gap-2">
+    <div ref={rootRef} className="w-full max-w-none flex-1 flex flex-col min-h-0 gap-2" data-testid="text-pad-view">
+      <TextPadTabBar
+        onNewTab={handleNewTab}
+        onCloseTab={handleCloseTab}
+        onSelectTab={handleSelectTab}
+      />
       <header className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <button
@@ -1046,6 +1386,21 @@ export function TextPadView() {
             className={operationsOpen ? buttonActive : buttonIdle}
           >
             {t('textPad.toolbar.operations')} {operationsOpen ? '▴' : '▾'}
+          </button>
+          <button onClick={() => {
+            setGoToLineTotal(viewRef.current?.state.doc.lines ?? 0)
+            setSearchOpen(false)
+            setGoToLineOpen(true)
+            requestAnimationFrame(() => goToLineInputRef.current?.focus())
+          }} className={buttonIdle}>
+            {t('textPad.goToLine.title')}
+          </button>
+          <button onClick={() => {
+            setGoToLineOpen(false)
+            setSearchOpen(true)
+            requestAnimationFrame(() => searchInputRef.current?.focus())
+          }} className={buttonIdle}>
+            {t('textPad.search.title')}
           </button>
           <button
             onClick={handleCopy}
@@ -1085,6 +1440,58 @@ export function TextPadView() {
           </button>
         </div>
       </header>
+
+      {undoList.map(({ id, title }) => (
+        <div key={id} className="flex items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-xs" data-testid={`undo-${id}`}>
+          <span className="flex-1 text-text">{t('textPad.undo.closeTab', { title })}</span>
+          <button onClick={() => handleUndoClose(id)} className="rounded bg-accent/20 px-2 py-0.5 text-[10px] font-mono text-accent hover:bg-accent/30">
+            {t('textPad.undo.restore')}
+          </button>
+        </div>
+      ))}
+
+      {(persistenceStatus === 'memory-only' || persistenceStatus === 'quota-error') && (
+        <div
+          role="alert"
+          data-testid={persistenceStatus === 'quota-error' ? 'quota-banner' : 'memory-only-banner'}
+          className="flex flex-wrap items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200"
+        >
+          <span className="flex-1">{persistenceStatus === 'quota-error' ? t('textPad.quota.title') : t('textPad.memoryOnly')}</span>
+          <button onClick={() => {
+            const title = activeTabId ? tabsById[activeTabId]?.title ?? 'pad' : 'pad'
+            downloadTextFile(viewRef.current?.state.doc.toString() ?? '', `${title}.txt`)
+          }} className={buttonIdle}>{t('textPad.quota.exportCurrent')}</button>
+          <button onClick={async () => {
+            const documents = new Map<string, { title: string; content: string }>()
+            try {
+              for (const doc of await getAllDocuments()) documents.set(doc.id, { title: doc.title, content: doc.content })
+            } catch {
+              // IndexedDB may be unavailable while persistence is memory-only.
+            }
+            for (const id of store.getState().openTabIds) {
+              const patch = captureDocument(id)
+              if (patch) documents.set(id, { title: store.getState().tabsById[id]?.title ?? id, content: patch.content })
+            }
+            for (const [id, entry] of undoEntries.current) documents.set(id, { title: entry.runtimeState.title, content: entry.runtimeState.editorState.doc.toString() })
+            downloadJsonBackup([...documents.values()])
+          }} className={buttonIdle}>{t('textPad.quota.exportAll')}</button>
+          {persistenceStatus === 'memory-only' ? (
+            <button onClick={() => { void handleRetryPersistence() }} className={buttonIdle}>{t('textPad.persistence.retry')}</button>
+          ) : (
+            <button onClick={async () => {
+              const { deleteDocuments } = await import('../../db/textPadRepository')
+              const closedIds = (await getAllDocuments()).map((doc) => doc.id).filter((id) => !store.getState().openTabIds.includes(id) && !undoEntries.current.has(id))
+              if (closedIds.length === 0) {
+                alert(t('textPad.quota.noClosed'))
+                return
+              }
+              if (!window.confirm(t('textPad.quota.deleteConfirm', { count: String(closedIds.length) }))) return
+              await deleteDocuments(closedIds)
+              await handleRetryPersistence()
+            }} className={buttonIdle}>{t('textPad.quota.deleteClosed')}</button>
+          )}
+        </div>
+      )}
 
       <input
         ref={fileInputRef}
@@ -1201,25 +1608,6 @@ export function TextPadView() {
         </div>
       )}
 
-      {editorAutosaveWarning && (
-        <div
-          role="alert"
-          data-testid="text-pad-autosave-warning"
-          className="flex items-start gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/40 rounded-lg text-xs text-amber-200"
-        >
-          <span className="flex-1">
-            {editorAutosaveWarning === 'autosave-too-large'
-              ? t('textPad.autosave.tooLarge')
-              : t('textPad.autosave.quotaExceeded')}
-          </span>
-          <button
-            onClick={clearEditorAutosaveWarning}
-            className="px-2 py-0.5 bg-amber-500/20 rounded text-amber-100 hover:bg-amber-500/30 transition-colors text-[10px] font-mono"
-          >
-            {t('textPad.autosave.dismiss')}
-          </button>
-        </div>
-      )}
 
       {searchOpen && (
         <div
@@ -1359,7 +1747,7 @@ export function TextPadView() {
 
       <section
         ref={hostRef}
-        data-testid="text-pad-view"
+        data-testid="text-pad-editor-host"
         className="text-pad-editor-host flex-1 min-h-[360px] overflow-hidden rounded-lg border border-border bg-[#09090b]"
       />
 
