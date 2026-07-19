@@ -387,10 +387,12 @@ describe('TextPadView', () => {
     })
 
     const host = screen.getByTestId('text-pad-undo-toasts')
-    expect(host).toHaveClass('fixed', 'bottom-4', 'right-4')
+    expect(host).toHaveClass('fixed', 'inset-y-4', 'right-4', 'flex', 'flex-col')
     expect(screen.queryByTestId(`undo-${initialId}`)).toBeNull()
     expect(host.querySelectorAll('[data-testid^="undo-"]')).toHaveLength(3)
-    expect(screen.getByRole('button', { name: 'More: 1' })).toHaveAttribute('aria-expanded', 'false')
+    const overflowButton = screen.getByRole('button', { name: 'More: 1' })
+    expect(overflowButton).toHaveAttribute('aria-expanded', 'false')
+    expect(overflowButton).not.toHaveAttribute('aria-controls')
   })
 
   it('makes older close undo actions keyboard-accessible in a viewport-bound overflow', async () => {
@@ -448,7 +450,8 @@ describe('TextPadView', () => {
     const overflowButton = screen.getByRole('button', { name: /^More:/ })
     fireEvent.click(overflowButton)
     const overflow = screen.getByRole('dialog', { name: 'More closed tabs' })
-    expect(overflow).toHaveClass('max-h-[calc(100dvh-11.75rem)]', 'overflow-y-auto')
+    expect(overflow.parentElement).toHaveClass('min-h-0', 'flex-1', 'flex', 'flex-col', 'justify-end')
+    expect(overflow).toHaveClass('min-h-0', 'flex-1', 'overflow-y-auto')
     expect(overflowButton).toHaveAttribute('aria-controls', overflow.id)
     expect(overflowButton).toHaveAttribute('aria-haspopup', 'dialog')
     expect(within(within(overflow).getByTestId(`undo-${initialId}`)).getByRole('button', { name: 'Undo' })).toHaveFocus()

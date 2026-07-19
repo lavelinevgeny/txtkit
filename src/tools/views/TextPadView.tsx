@@ -1480,50 +1480,52 @@ export function TextPadView() {
           ref={undoToastsRef}
           data-testid="text-pad-undo-toasts"
           aria-live="polite"
-          className="fixed bottom-4 right-4 z-40 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2"
+          className="fixed inset-y-4 right-4 z-40 flex w-[min(24rem,calc(100vw-2rem))] flex-col"
         >
-          {hiddenUndoItems.length > 0 && (
-            <div className="relative">
-              {undoOverflowOpen && (
-                <div
-                  ref={undoOverflowDialogRef}
-                  id={undoOverflowId}
-                  role="dialog"
-                  aria-label={t('textPad.undo.moreClosedTabs')}
-                  className="absolute bottom-full right-0 mb-2 flex max-h-[calc(100dvh-11.75rem)] w-full flex-col gap-2 overflow-y-auto rounded-lg border border-border bg-surface p-2 shadow-lg"
-                >
-                  {hiddenUndoItems.map(({ id, title }) => (
-                    <div key={id} className="flex items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-xs" data-testid={`undo-${id}`}>
-                      <span className="flex-1 text-text">{t('textPad.undo.closeTab', { title })}</span>
-                      <button onClick={() => handleUndoClose(id)} className="min-h-9 rounded bg-accent/20 px-3 text-xs font-mono text-accent hover:bg-accent/30">
-                        {t('textPad.undo.restore')}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <button
-                type="button"
-                ref={undoOverflowButtonRef}
-                aria-controls={undoOverflowId}
-                aria-haspopup="dialog"
-                aria-expanded={undoOverflowOpen}
-                onClick={() => setUndoOverflowOpen((open) => !open)}
-                className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-left text-xs font-mono text-muted hover:border-accent/40 hover:text-accent"
+          <div className="flex min-h-0 flex-1 flex-col justify-end gap-2">
+            {undoOverflowOpen && (
+              <div
+                ref={undoOverflowDialogRef}
+                id={undoOverflowId}
+                role="dialog"
+                aria-label={t('textPad.undo.moreClosedTabs')}
+                className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto rounded-lg border border-border bg-surface p-2 shadow-lg"
               >
-                {t('textPad.undo.more', { count: hiddenUndoItems.length })}
-              </button>
-            </div>
-          )}
-          <div className="flex flex-col gap-2">
-            {visibleUndoItems.map(({ id, title }) => (
-              <div key={id} className="flex items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-xs" data-testid={`undo-${id}`}>
-                <span className="flex-1 text-text">{t('textPad.undo.closeTab', { title })}</span>
-                <button onClick={() => handleUndoClose(id)} className="min-h-9 rounded bg-accent/20 px-3 text-xs font-mono text-accent hover:bg-accent/30">
-                  {t('textPad.undo.restore')}
+                {hiddenUndoItems.map(({ id, title }) => (
+                  <div key={id} className="flex items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-xs" data-testid={`undo-${id}`}>
+                    <span className="flex-1 text-text">{t('textPad.undo.closeTab', { title })}</span>
+                    <button onClick={() => handleUndoClose(id)} className="min-h-9 rounded bg-accent/20 px-3 text-xs font-mono text-accent hover:bg-accent/30">
+                      {t('textPad.undo.restore')}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {hiddenUndoItems.length > 0 && (
+              <div>
+                <button
+                  type="button"
+                  ref={undoOverflowButtonRef}
+                  aria-controls={undoOverflowOpen ? undoOverflowId : undefined}
+                  aria-haspopup="dialog"
+                  aria-expanded={undoOverflowOpen}
+                  onClick={() => setUndoOverflowOpen((open) => !open)}
+                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-left text-xs font-mono text-muted hover:border-accent/40 hover:text-accent"
+                >
+                  {t('textPad.undo.more', { count: hiddenUndoItems.length })}
                 </button>
               </div>
-            ))}
+            )}
+            <div className="flex flex-col gap-2">
+              {visibleUndoItems.map(({ id, title }) => (
+                <div key={id} className="flex items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-xs" data-testid={`undo-${id}`}>
+                  <span className="flex-1 text-text">{t('textPad.undo.closeTab', { title })}</span>
+                  <button onClick={() => handleUndoClose(id)} className="min-h-9 rounded bg-accent/20 px-3 text-xs font-mono text-accent hover:bg-accent/30">
+                    {t('textPad.undo.restore')}
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         </aside>
       )}
