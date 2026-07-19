@@ -140,7 +140,7 @@ export function TextPadTabBar({
             ref={moreTabsButtonRef}
             className="px-3 py-2 text-muted hover:text-foreground"
             onClick={() => setMenuOpen((open) => !open)}
-            aria-controls={overflowPopupId}
+            aria-controls={menuOpen ? overflowPopupId : undefined}
             aria-haspopup="dialog"
             aria-expanded={menuOpen}
             aria-label={t('textPad.tabs.moreTabs')}

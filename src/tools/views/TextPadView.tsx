@@ -1480,16 +1480,16 @@ export function TextPadView() {
           ref={undoToastsRef}
           data-testid="text-pad-undo-toasts"
           aria-live="polite"
-          className="fixed inset-y-4 right-4 z-40 flex w-[min(24rem,calc(100vw-2rem))] flex-col"
+          className="pointer-events-none fixed inset-y-4 right-4 z-40 flex w-[min(24rem,calc(100vw-2rem))] flex-col"
         >
-          <div className="flex min-h-0 flex-1 flex-col justify-end gap-2">
+          <div className="pointer-events-none flex min-h-0 flex-1 flex-col justify-end gap-2">
             {undoOverflowOpen && (
               <div
                 ref={undoOverflowDialogRef}
                 id={undoOverflowId}
                 role="dialog"
                 aria-label={t('textPad.undo.moreClosedTabs')}
-                className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto rounded-lg border border-border bg-surface p-2 shadow-lg"
+                className="pointer-events-auto flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto rounded-lg border border-border bg-surface p-2 shadow-lg"
               >
                 {hiddenUndoItems.map(({ id, title }) => (
                   <div key={id} className="flex items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-xs" data-testid={`undo-${id}`}>
@@ -1502,7 +1502,7 @@ export function TextPadView() {
               </div>
             )}
             {hiddenUndoItems.length > 0 && (
-              <div>
+              <div className="pointer-events-auto">
                 <button
                   type="button"
                   ref={undoOverflowButtonRef}
@@ -1516,7 +1516,7 @@ export function TextPadView() {
                 </button>
               </div>
             )}
-            <div className="flex flex-col gap-2">
+            <div className="pointer-events-auto flex flex-col gap-2">
               {visibleUndoItems.map(({ id, title }) => (
                 <div key={id} className="flex items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-xs" data-testid={`undo-${id}`}>
                   <span className="flex-1 text-text">{t('textPad.undo.closeTab', { title })}</span>

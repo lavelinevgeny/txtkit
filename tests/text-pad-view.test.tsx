@@ -163,9 +163,11 @@ describe('TextPadView', () => {
     expect(tabBar.nextElementSibling).toHaveAttribute('data-testid', 'text-pad-editor-host')
 
     const moreTabsButton = screen.getByRole('button', { name: 'More tabs' })
+    expect(moreTabsButton).not.toHaveAttribute('aria-controls')
     fireEvent.click(moreTabsButton)
     const overflowPopup = screen.getByRole('dialog', { name: 'More tabs' })
     expect(overflowPopup).toBeInTheDocument()
+    expect(moreTabsButton).toHaveAttribute('aria-controls', overflowPopup.id)
     expect(screen.getByRole('button', { name: 'pad3' })).toHaveFocus()
     await user.tab()
     expect(screen.getByRole('button', { name: 'Close pad3' })).toHaveFocus()
@@ -387,7 +389,8 @@ describe('TextPadView', () => {
     })
 
     const host = screen.getByTestId('text-pad-undo-toasts')
-    expect(host).toHaveClass('fixed', 'inset-y-4', 'right-4', 'flex', 'flex-col')
+    expect(host).toHaveClass('pointer-events-none', 'fixed', 'inset-y-4', 'right-4', 'flex', 'flex-col')
+    expect(host.querySelector('.pointer-events-auto')).toBeInTheDocument()
     expect(screen.queryByTestId(`undo-${initialId}`)).toBeNull()
     expect(host.querySelectorAll('[data-testid^="undo-"]')).toHaveLength(3)
     const overflowButton = screen.getByRole('button', { name: 'More: 1' })
