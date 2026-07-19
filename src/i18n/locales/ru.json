@@ -283,6 +283,8 @@
   "textPad.tabs.prevTab": "Предыдущая вкладка",
   "textPad.undo.closeTab": "Вкладка «{title}» закрыта.",
   "textPad.undo.restore": "Отменить",
+  "textPad.undo.more": "Ещё: {count}",
+  "textPad.undo.moreClosedTabs": "Ещё закрытые вкладки",
   "textPad.quota.title": "Хранилище заполнено",
   "textPad.quota.exportCurrent": "Скачать текущую",
   "textPad.quota.exportAll": "Скачать все документы",

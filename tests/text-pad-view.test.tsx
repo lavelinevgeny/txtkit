@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { EditorView } from '@codemirror/view'
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import 'fake-indexeddb/auto'
 import { I18nProvider } from '../src/i18n/context'
@@ -80,6 +80,21 @@ function getClickHandler(element: HTMLElement): () => void {
 
 beforeAll(() => {
   ;(globalThis as { ResizeObserver?: typeof MockResizeObserver }).ResizeObserver = MockResizeObserver
+})
+
+afterEach(async () => {
+  cleanup()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  await resetTextPadRepositoryForTests()
+  for (const db of await indexedDB.databases()) {
+    if (db.name) {
+      await new Promise<void>((resolve, reject) => {
+        const request = indexedDB.deleteDatabase(db.name!)
+        request.onsuccess = () => resolve()
+        request.onerror = () => reject(request.error)
+      })
+    }
+  }
 })
 
 beforeEach(async () => {
@@ -340,5 +355,106 @@ describe('TextPadView', () => {
     fireEvent.change(screen.getByPlaceholderText('Line number'), { target: { value: '3' } })
     fireEvent.click(screen.getByRole('button', { name: 'Go' }))
     expect(screen.getByText('Line out of range')).toBeInTheDocument()
+  })
+
+  it('shows close undo notices in a fixed three-item toast stack', async () => {
+    renderTextPad()
+    await waitForEditor()
+
+    const initialId = useTextPadStore.getState().activeTabId!
+    act(() => {
+      useTextPadStore.setState({
+        activeTabId: initialId,
+        openTabIds: [initialId],
+        tabsById: { [initialId]: useTextPadStore.getState().tabsById[initialId]! },
+        nextUntitledNumber: 2,
+      })
+    })
+    for (let index = 0; index < 3; index += 1) {
+      fireEvent.click(screen.getByRole('button', { name: 'New tab' }))
+    }
+    act(() => {
+      MockResizeObserver.trigger(2000)
+    })
+    const ids = [...useTextPadStore.getState().openTabIds]
+    const closeTabs = ids.map((id) => getClickHandler(screen.getByTestId(`close-tab-${id}`)))
+    act(() => {
+      for (const closeTab of closeTabs) closeTab()
+    })
+
+    await waitFor(async () => {
+      expect((await getWorkspace())?.openTabIds).toHaveLength(1)
+    })
+
+    const host = screen.getByTestId('text-pad-undo-toasts')
+    expect(host).toHaveClass('fixed', 'bottom-4', 'right-4')
+    expect(screen.queryByTestId(`undo-${initialId}`)).toBeNull()
+    expect(host.querySelectorAll('[data-testid^="undo-"]')).toHaveLength(3)
+    expect(screen.getByRole('button', { name: 'More: 1' })).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('restores an older closed tab from the undo-toast overflow', async () => {
+    await resetTextPadRepositoryForTests()
+    for (const db of await indexedDB.databases()) {
+      if (db.name) {
+        await new Promise<void>((resolve, reject) => {
+          const request = indexedDB.deleteDatabase(db.name!)
+          request.onsuccess = () => resolve()
+          request.onerror = () => reject(request.error)
+        })
+      }
+    }
+    resetTextPadBootstrapForTests()
+    useTextPadStore.setState({
+      activeTabId: null,
+      openTabIds: [],
+      tabsById: {},
+      nextUntitledNumber: 1,
+      persistenceStatus: 'initializing',
+      currentRevisionById: {},
+      savedRevisionById: {},
+      saveErrorById: {},
+      workspaceSaveError: false,
+    })
+    renderTextPad()
+    await waitForEditor()
+
+    const initialId = useTextPadStore.getState().activeTabId!
+    act(() => {
+      useTextPadStore.setState({
+        activeTabId: initialId,
+        openTabIds: [initialId],
+        tabsById: { [initialId]: useTextPadStore.getState().tabsById[initialId]! },
+        nextUntitledNumber: 2,
+      })
+    })
+    for (let index = 0; index < 3; index += 1) {
+      fireEvent.click(screen.getByRole('button', { name: 'New tab' }))
+    }
+    act(() => {
+      MockResizeObserver.trigger(2000)
+    })
+    const closeTabs = useTextPadStore.getState().openTabIds.map((id) =>
+      getClickHandler(screen.getByTestId(`close-tab-${id}`)),
+    )
+    act(() => {
+      for (const closeTab of closeTabs) closeTab()
+    })
+
+    await waitFor(async () => {
+      expect((await getWorkspace())?.openTabIds).toHaveLength(1)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /^More:/ }))
+    const overflow = screen.getByRole('dialog', { name: 'More closed tabs' })
+    expect(overflow).toHaveClass('max-h-[calc(100vh-12rem)]', 'overflow-y-auto')
+    fireEvent.click(within(within(overflow).getByTestId(`undo-${initialId}`)).getByRole('button', { name: 'Undo' }))
+
+    expect(useTextPadStore.getState().openTabIds).toContain(initialId)
+    expect(screen.queryByRole('dialog', { name: 'More closed tabs' })).toBeNull()
+
+    await waitFor(async () => {
+      expect((await getWorkspace())?.openTabIds).toContain(initialId)
+    })
   })
 })

@@ -283,6 +283,8 @@
   "textPad.tabs.prevTab": "Previous tab",
   "textPad.undo.closeTab": "Tab \"{title}\" closed.",
   "textPad.undo.restore": "Undo",
+  "textPad.undo.more": "More: {count}",
+  "textPad.undo.moreClosedTabs": "More closed tabs",
   "textPad.quota.title": "Storage full",
   "textPad.quota.exportCurrent": "Download current",
   "textPad.quota.exportAll": "Download all documents",
