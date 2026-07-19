@@ -95,6 +95,23 @@ describe('TextPadView', () => {
     expect(useTextPadStore.getState().openTabIds.length).toBeGreaterThan(0)
   })
 
+  it('resets the replacement tab to pad1 after closing the last tab', async () => {
+    renderTextPad()
+    await waitForEditor()
+    const closedId = useTextPadStore.getState().activeTabId
+    expect(closedId).not.toBeNull()
+
+    fireEvent.click(screen.getByTestId(`close-tab-${closedId}`))
+
+    await waitFor(() => {
+      const state = useTextPadStore.getState()
+      expect(state.openTabIds).toHaveLength(1)
+      expect(state.openTabIds[0]).not.toBe(closedId)
+      expect(state.tabsById[state.openTabIds[0]!]?.title).toBe('pad1')
+      expect(state.nextUntitledNumber).toBe(2)
+    })
+  })
+
   it('creates exactly one initial document in StrictMode', async () => {
     render(
       <StrictMode>

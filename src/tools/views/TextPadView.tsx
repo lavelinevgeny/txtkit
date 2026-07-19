@@ -1022,10 +1022,9 @@ export function TextPadView() {
     let newState: RuntimeTabState | null = null
     let nextUntitledNumber = s.nextUntitledNumber
     if (isLastTab) {
-      const number = s.nextUntitledNumber
       newId = crypto.randomUUID()
       const createdAt = Date.now()
-      const newTitle = `pad${number}`
+      const newTitle = 'pad1'
       const editorState = createEditorState({
         doc: '',
         lineWrapping: editorPrefsRef.current.lineWrapping,
@@ -1035,8 +1034,8 @@ export function TextPadView() {
       lastUpdatedAtById.current.set(newId, createdAt)
       runtimeTabs.current.set(newId, newState)
       activeTabIdRef.current = newId
-      store.getState().addTab(newId, newTitle, number + 1)
-      nextUntitledNumber = number + 1
+      store.getState().addTab(newId, newTitle, 2)
+      nextUntitledNumber = 2
     }
 
     const result = store.getState().closeTab(id)
