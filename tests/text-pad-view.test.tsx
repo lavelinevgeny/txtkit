@@ -393,7 +393,7 @@ describe('TextPadView', () => {
     expect(screen.getByRole('button', { name: 'More: 1' })).toHaveAttribute('aria-expanded', 'false')
   })
 
-  it('restores an older closed tab from the undo-toast overflow', async () => {
+  it('makes older close undo actions keyboard-accessible in a viewport-bound overflow', async () => {
     await resetTextPadRepositoryForTests()
     for (const db of await indexedDB.databases()) {
       if (db.name) {
@@ -445,10 +445,26 @@ describe('TextPadView', () => {
       expect((await getWorkspace())?.openTabIds).toHaveLength(1)
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /^More:/ }))
+    const overflowButton = screen.getByRole('button', { name: /^More:/ })
+    fireEvent.click(overflowButton)
     const overflow = screen.getByRole('dialog', { name: 'More closed tabs' })
-    expect(overflow).toHaveClass('max-h-[calc(100vh-12rem)]', 'overflow-y-auto')
-    fireEvent.click(within(within(overflow).getByTestId(`undo-${initialId}`)).getByRole('button', { name: 'Undo' }))
+    expect(overflow).toHaveClass('max-h-[calc(100dvh-11.75rem)]', 'overflow-y-auto')
+    expect(overflowButton).toHaveAttribute('aria-controls', overflow.id)
+    expect(overflowButton).toHaveAttribute('aria-haspopup', 'dialog')
+    expect(within(within(overflow).getByTestId(`undo-${initialId}`)).getByRole('button', { name: 'Undo' })).toHaveFocus()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'More closed tabs' })).toBeNull()
+    expect(overflowButton).toHaveFocus()
+
+    fireEvent.click(overflowButton)
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole('dialog', { name: 'More closed tabs' })).toBeNull()
+    expect(overflowButton).toHaveFocus()
+
+    fireEvent.click(overflowButton)
+    const reopenedOverflow = screen.getByRole('dialog', { name: 'More closed tabs' })
+    fireEvent.click(within(within(reopenedOverflow).getByTestId(`undo-${initialId}`)).getByRole('button', { name: 'Undo' }))
 
     expect(useTextPadStore.getState().openTabIds).toContain(initialId)
     expect(screen.queryByRole('dialog', { name: 'More closed tabs' })).toBeNull()

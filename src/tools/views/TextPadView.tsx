@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components, react-hooks/refs, react-hooks/set-state-in-effect, react-hooks/preserve-manual-memoization */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { EditorView, highlightSpecialChars } from '@codemirror/view'
 import { SearchQuery, setSearchQuery as cmSetSearchQuery, findNext as cmFindNext, findPrevious as cmFindPrevious, replaceNext as cmReplaceNext, replaceAll as cmReplaceAll } from '@codemirror/search'
@@ -420,6 +420,9 @@ export function TextPadView() {
   // ---- Refs ----
   const rootRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
+  const undoToastsRef = useRef<HTMLElement>(null)
+  const undoOverflowButtonRef = useRef<HTMLButtonElement>(null)
+  const undoOverflowDialogRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const runtimeTabs = useRef(new Map<string, RuntimeTabState>())
   const undoEntries = useRef(new Map<string, ClosedTabUndoEntry>())
@@ -434,6 +437,7 @@ export function TextPadView() {
   const [initialized, setInitialized] = useState(false)
   const [undoList, setUndoList] = useState<Array<{ id: string; title: string }>>([])
   const [undoOverflowOpen, setUndoOverflowOpen] = useState(false)
+  const undoOverflowId = useId()
   const visibleUndoItems = undoList.slice(-3)
   const hiddenUndoItems = undoList.slice(0, -3)
   const [documentVersion, setDocumentVersion] = useState(0)
@@ -460,6 +464,33 @@ export function TextPadView() {
   useEffect(() => {
     if (hiddenUndoItems.length === 0) setUndoOverflowOpen(false)
   }, [hiddenUndoItems.length])
+
+  useEffect(() => {
+    if (!undoOverflowOpen) return undefined
+
+    const closeOverflow = () => {
+      setUndoOverflowOpen(false)
+      undoOverflowButtonRef.current?.focus()
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeOverflow()
+    }
+    const closeOnOutsidePointerDown = (event: PointerEvent) => {
+      if (!undoToastsRef.current?.contains(event.target as Node)) closeOverflow()
+    }
+
+    document.addEventListener('keydown', closeOnEscape)
+    document.addEventListener('pointerdown', closeOnOutsidePointerDown, true)
+    return () => {
+      document.removeEventListener('keydown', closeOnEscape)
+      document.removeEventListener('pointerdown', closeOnOutsidePointerDown, true)
+    }
+  }, [undoOverflowOpen])
+
+  useEffect(() => {
+    if (!undoOverflowOpen) return
+    undoOverflowDialogRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
+  }, [undoOverflowOpen])
 
   // Keep ref in sync
   activeTabIdRef.current = activeTabId
@@ -1446,6 +1477,7 @@ export function TextPadView() {
 
       {undoList.length > 0 && (
         <aside
+          ref={undoToastsRef}
           data-testid="text-pad-undo-toasts"
           aria-live="polite"
           className="fixed bottom-4 right-4 z-40 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2"
@@ -1454,9 +1486,11 @@ export function TextPadView() {
             <div className="relative">
               {undoOverflowOpen && (
                 <div
+                  ref={undoOverflowDialogRef}
+                  id={undoOverflowId}
                   role="dialog"
                   aria-label={t('textPad.undo.moreClosedTabs')}
-                  className="absolute bottom-full right-0 mb-2 flex max-h-[calc(100vh-12rem)] w-full flex-col gap-2 overflow-y-auto rounded-lg border border-border bg-surface p-2 shadow-lg"
+                  className="absolute bottom-full right-0 mb-2 flex max-h-[calc(100dvh-11.75rem)] w-full flex-col gap-2 overflow-y-auto rounded-lg border border-border bg-surface p-2 shadow-lg"
                 >
                   {hiddenUndoItems.map(({ id, title }) => (
                     <div key={id} className="flex items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-xs" data-testid={`undo-${id}`}>
@@ -1470,6 +1504,9 @@ export function TextPadView() {
               )}
               <button
                 type="button"
+                ref={undoOverflowButtonRef}
+                aria-controls={undoOverflowId}
+                aria-haspopup="dialog"
                 aria-expanded={undoOverflowOpen}
                 onClick={() => setUndoOverflowOpen((open) => !open)}
                 className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-left text-xs font-mono text-muted hover:border-accent/40 hover:text-accent"
