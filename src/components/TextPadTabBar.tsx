@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from '../i18n/context'
 import { useTextPadStore } from '../tools/text-pad/useTextPadStore'
 import { normalizeVisibleTabIds, promoteOverflowTab } from './textPadTabOverflow'
@@ -23,9 +23,21 @@ export function TextPadTabBar({
   const activeTabId = useTextPadStore((state) => state.activeTabId)
   const { t } = useTranslation()
   const barRef = useRef<HTMLDivElement>(null)
+  const moreTabsButtonRef = useRef<HTMLButtonElement>(null)
+  const overflowPopupRef = useRef<HTMLDivElement>(null)
+  const overflowPopupId = useId()
   const [capacity, setCapacity] = useState(1)
   const [visibleTabIds, setVisibleTabIds] = useState<string[]>([])
   const [menuOpen, setMenuOpen] = useState(false)
+
+  // Normalize during render too, so an externally selected hidden tab is never
+  // briefly rendered outside the visible portion while the effect catches up.
+  const displayedVisibleTabIds = normalizeVisibleTabIds(
+    openTabIds,
+    visibleTabIds,
+    capacity,
+    activeTabId,
+  )
 
   useEffect(() => {
     const bar = barRef.current
@@ -40,25 +52,25 @@ export function TextPadTabBar({
   }, [])
 
   useEffect(() => {
-    const normalizedIds = normalizeVisibleTabIds(
-      openTabIds,
-      visibleTabIds,
-      capacity,
-      activeTabId,
-    )
     // The visible list is derived display state; preserve its identity when unchanged.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setVisibleTabIds((ids) => haveSameIds(ids, normalizedIds) ? ids : normalizedIds)
-  }, [activeTabId, capacity, openTabIds, visibleTabIds])
+    setVisibleTabIds((ids) => haveSameIds(ids, displayedVisibleTabIds) ? ids : displayedVisibleTabIds)
+  }, [displayedVisibleTabIds])
 
   useEffect(() => {
     if (!menuOpen) return undefined
 
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false)
+      if (event.key === 'Escape') {
+        setMenuOpen(false)
+        moreTabsButtonRef.current?.focus()
+      }
     }
     const closeOnOutsidePointerDown = (event: PointerEvent) => {
-      if (!barRef.current?.contains(event.target as Node)) setMenuOpen(false)
+      if (!barRef.current?.contains(event.target as Node)) {
+        setMenuOpen(false)
+        moreTabsButtonRef.current?.focus()
+      }
     }
 
     document.addEventListener('keydown', closeOnEscape)
@@ -69,7 +81,12 @@ export function TextPadTabBar({
     }
   }, [menuOpen])
 
-  const hiddenTabIds = openTabIds.filter((id) => !visibleTabIds.includes(id))
+  useEffect(() => {
+    if (!menuOpen) return
+    overflowPopupRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
+  }, [menuOpen])
+
+  const hiddenTabIds = openTabIds.filter((id) => !displayedVisibleTabIds.includes(id))
 
   const selectOverflowTab = (id: string) => {
     setVisibleTabIds((ids) => promoteOverflowTab(ids, id))
@@ -89,7 +106,7 @@ export function TextPadTabBar({
       data-testid="text-pad-tab-bar"
     >
       <div className="flex min-w-0 flex-1">
-        {visibleTabIds.map((id) => {
+        {displayedVisibleTabIds.map((id) => {
           const tab = tabsById[id]
           const isActive = id === activeTabId
 
@@ -120,22 +137,29 @@ export function TextPadTabBar({
       {hiddenTabIds.length > 0 && (
         <div className="relative shrink-0">
           <button
+            ref={moreTabsButtonRef}
             className="px-3 py-2 text-muted hover:text-foreground"
             onClick={() => setMenuOpen((open) => !open)}
-            aria-haspopup="menu"
+            aria-controls={overflowPopupId}
+            aria-haspopup="dialog"
             aria-expanded={menuOpen}
             aria-label={t('textPad.tabs.moreTabs')}
           >
             ⋯
           </button>
           {menuOpen && (
-            <div role="menu" className="absolute right-0 z-10 mt-1 min-w-48 rounded-lg border border-border bg-surface p-1 shadow-lg">
+            <div
+              ref={overflowPopupRef}
+              id={overflowPopupId}
+              role="dialog"
+              aria-label={t('textPad.tabs.moreTabs')}
+              className="absolute right-0 z-10 mt-1 min-w-48 rounded-lg border border-border bg-surface p-1 shadow-lg"
+            >
               {hiddenTabIds.map((id) => {
                 const title = tabsById[id]?.title ?? id
                 return (
                   <div key={id} className="flex items-center">
                     <button
-                      role="menuitem"
                       className="min-w-0 flex-1 truncate rounded px-2 py-1.5 text-left text-sm hover:bg-surface-hover"
                       onClick={() => selectOverflowTab(id)}
                     >

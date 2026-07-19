@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { EditorView } from '@codemirror/view'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import 'fake-indexeddb/auto'
 import { I18nProvider } from '../src/i18n/context'
 import { useStore } from '../src/store/useStore'
@@ -125,6 +126,7 @@ describe('TextPadView', () => {
   })
 
   it('places responsive tabs immediately above the editor and promotes overflow tabs', async () => {
+    const user = userEvent.setup()
     renderTextPad()
     await waitForEditor()
 
@@ -145,16 +147,73 @@ describe('TextPadView', () => {
     const tabBar = screen.getByTestId('text-pad-tab-bar')
     expect(tabBar.nextElementSibling).toHaveAttribute('data-testid', 'text-pad-editor-host')
 
-    fireEvent.click(screen.getByRole('button', { name: 'More tabs' }))
-    expect(screen.getByRole('menu')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('menuitem', { name: 'pad4' }))
+    const moreTabsButton = screen.getByRole('button', { name: 'More tabs' })
+    fireEvent.click(moreTabsButton)
+    const overflowPopup = screen.getByRole('dialog', { name: 'More tabs' })
+    expect(overflowPopup).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'pad3' })).toHaveFocus()
+    await user.tab()
+    expect(screen.getByRole('button', { name: 'Close pad3' })).toHaveFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'pad4' }))
 
     expect(screen.getByRole('button', { name: 'pad4' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'More tabs' }))
-    expect(screen.getByRole('menuitem', { name: 'pad2' })).toBeInTheDocument()
+    fireEvent.click(moreTabsButton)
+    expect(screen.getByRole('button', { name: 'pad2' })).toBeInTheDocument()
     fireEvent.keyDown(document, { key: 'Escape' })
-    expect(screen.queryByRole('menu')).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'More tabs' })).toBeNull()
+    expect(moreTabsButton).toHaveFocus()
     expect(screen.getByRole('button', { name: 'New tab' })).toBeInTheDocument()
+  })
+
+  it('closes a hidden tab from the overflow popup and dismisses it on outside pointer down', async () => {
+    renderTextPad()
+    await waitForEditor()
+
+    act(() => {
+      useTextPadStore.setState({
+        activeTabId: 'pad1',
+        openTabIds: ['pad1', 'pad2', 'pad3', 'pad4'],
+        tabsById: {
+          pad1: { title: 'pad1' },
+          pad2: { title: 'pad2' },
+          pad3: { title: 'pad3' },
+          pad4: { title: 'pad4' },
+        },
+      })
+      MockResizeObserver.trigger(320)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'More tabs' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close pad3' }))
+
+    expect(useTextPadStore.getState().openTabIds).not.toContain('pad3')
+    expect(screen.queryByRole('dialog', { name: 'More tabs' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'More tabs' }))
+    expect(screen.getByRole('dialog', { name: 'More tabs' })).toBeInTheDocument()
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole('dialog', { name: 'More tabs' })).toBeNull()
+  })
+
+  it('renders an externally selected hidden tab immediately as visible', async () => {
+    renderTextPad()
+    await waitForEditor()
+
+    act(() => {
+      useTextPadStore.setState({
+        activeTabId: 'pad4',
+        openTabIds: ['pad1', 'pad2', 'pad3', 'pad4'],
+        tabsById: {
+          pad1: { title: 'pad1' },
+          pad2: { title: 'pad2' },
+          pad3: { title: 'pad3' },
+          pad4: { title: 'pad4' },
+        },
+      })
+      MockResizeObserver.trigger(320)
+    })
+
+    expect(screen.getByRole('button', { name: 'pad4' })).toHaveAttribute('data-active', 'true')
   })
 
   it('keeps one persisted replacement after repeated close of the last tab', async () => {
