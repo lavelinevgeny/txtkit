@@ -16,10 +16,12 @@ const MIN_INPUT_HEIGHT = 120
 const MIN_RESULT_HEIGHT = 240
 const MIN_INPUT_WIDTH = 240
 const DIVIDER_WIDTH = 8
+const HEIGHT_KEYBOARD_STEP = 16
+const WIDTH_KEYBOARD_STEP = 24
 
 function readLayoutNumber(key: string, fallback: number) {
   const raw = localStorage.getItem(key)
-  const parsed = raw === null ? Number.NaN : Number(raw)
+  const parsed = raw === null || raw.trim() === '' ? Number.NaN : Number(raw)
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
@@ -27,8 +29,8 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
 }
 
-function topHeightBounds(layoutHeight: number) {
-  const max = Math.max(0, layoutHeight - MIN_RESULT_HEIGHT)
+function topHeightBounds(layoutHeight: number, chromeHeight: number) {
+  const max = Math.max(0, layoutHeight - chromeHeight - MIN_RESULT_HEIGHT)
   return [Math.min(MIN_INPUT_HEIGHT, max), max] as const
 }
 
@@ -114,6 +116,12 @@ interface Viewport {
   scrollHeight: number
 }
 
+interface LayoutMetrics {
+  width: number
+  height: number
+  chromeHeight: number
+}
+
 /**
  * Location pane: a compact vertical map of the whole comparison. Each changed
  * row is a coloured tick placed at its relative position; the highlighted box
@@ -190,12 +198,20 @@ export function TextDiffView() {
   const [wordLevel, setWordLevel] = useState(true)
   const [syncScroll, setSyncScroll] = useState(true)
   const layoutRef = useRef<HTMLDivElement>(null)
+  const horizontalResizerRef = useRef<HTMLDivElement>(null)
+  const statsRef = useRef<HTMLDivElement>(null)
   const [topHeight, setTopHeight] = useState(() => readLayoutNumber(TOP_HEIGHT_KEY, 160))
   const [leftWidthRatio, setLeftWidthRatio] = useState(() =>
     readLayoutNumber(LEFT_WIDTH_RATIO_KEY, 0.5),
   )
   const topHeightRef = useRef(topHeight)
   const leftWidthRatioRef = useRef(leftWidthRatio)
+  const dragCleanupRef = useRef<(() => void) | null>(null)
+  const [layoutMetrics, setLayoutMetrics] = useState<LayoutMetrics>({
+    width: 0,
+    height: 0,
+    chromeHeight: 0,
+  })
 
   useEffect(() => {
     topHeightRef.current = topHeight
@@ -205,13 +221,34 @@ export function TextDiffView() {
     leftWidthRatioRef.current = leftWidthRatio
   }, [leftWidthRatio])
 
+  useEffect(() => {
+    return () => dragCleanupRef.current?.()
+  }, [])
+
+  const getTopBounds = useCallback((layoutHeight: number) => {
+    const chromeHeight =
+      (horizontalResizerRef.current?.getBoundingClientRect().height ?? 0) +
+      (statsRef.current?.getBoundingClientRect().height ?? 0)
+    return topHeightBounds(layoutHeight, chromeHeight)
+  }, [])
+
   const normalizeLayout = useCallback(() => {
     const layout = layoutRef.current
     if (!layout) return
 
     const rect = layout.getBoundingClientRect()
+    const chromeHeight =
+      (horizontalResizerRef.current?.getBoundingClientRect().height ?? 0) +
+      (statsRef.current?.getBoundingClientRect().height ?? 0)
+    setLayoutMetrics((current) =>
+      current.width === rect.width &&
+      current.height === rect.height &&
+      current.chromeHeight === chromeHeight
+        ? current
+        : { width: rect.width, height: rect.height, chromeHeight },
+    )
     if (rect.height > 0) {
-      const [min, max] = topHeightBounds(rect.height)
+      const [min, max] = topHeightBounds(rect.height, chromeHeight)
       const height = clamp(topHeightRef.current, min, max)
       if (height !== topHeightRef.current) {
         topHeightRef.current = height
@@ -301,6 +338,8 @@ export function TextDiffView() {
     if (typeof ResizeObserver !== 'undefined' && layout) {
       observer = new ResizeObserver(handleResize)
       observer.observe(layout)
+      if (horizontalResizerRef.current) observer.observe(horizontalResizerRef.current)
+      if (statsRef.current) observer.observe(statsRef.current)
     }
 
     return () => {
@@ -325,18 +364,78 @@ export function TextDiffView() {
     setRight(left)
   }
 
+  const resizeTopBy = useCallback(
+    (delta: number) => {
+      const layout = layoutRef.current
+      if (!layout) return
+      const [min, max] = getTopBounds(layout.getBoundingClientRect().height)
+      const height = clamp(topHeightRef.current + delta, min, max)
+      topHeightRef.current = height
+      setTopHeight(height)
+      localStorage.setItem(TOP_HEIGHT_KEY, String(height))
+    },
+    [getTopBounds],
+  )
+
+  const resizeLeftWidthBy = useCallback((delta: number) => {
+    const layout = layoutRef.current
+    if (!layout) return
+    const rect = layout.getBoundingClientRect()
+    if (rect.width <= 0) return
+    const [min, max] = leftWidthRatioBounds(rect.width)
+    const ratio = clamp(leftWidthRatioRef.current + delta / rect.width, min, max)
+    leftWidthRatioRef.current = ratio
+    setLeftWidthRatio(ratio)
+    localStorage.setItem(LEFT_WIDTH_RATIO_KEY, String(ratio))
+  }, [])
+
+  const handleHorizontalResizeKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      const delta =
+        event.key === 'ArrowUp'
+          ? -HEIGHT_KEYBOARD_STEP
+          : event.key === 'ArrowDown'
+            ? HEIGHT_KEYBOARD_STEP
+            : 0
+      if (!delta) return
+      event.preventDefault()
+      resizeTopBy(delta)
+    },
+    [resizeTopBy],
+  )
+
+  const handleVerticalResizeKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      const delta =
+        event.key === 'ArrowLeft'
+          ? -WIDTH_KEYBOARD_STEP
+          : event.key === 'ArrowRight'
+            ? WIDTH_KEYBOARD_STEP
+            : 0
+      if (!delta) return
+      event.preventDefault()
+      resizeLeftWidthBy(delta)
+    },
+    [resizeLeftWidthBy],
+  )
+
   const startHorizontalResize = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     const layout = layoutRef.current
     if (!layout) return
 
+    dragCleanupRef.current?.()
+    event.preventDefault()
     const startY = event.clientY
     const startHeight = topHeightRef.current
+    const target = event.currentTarget
+    const pointerId = event.pointerId
+    if (typeof pointerId === 'number' && target.setPointerCapture) target.setPointerCapture(pointerId)
     document.body.style.userSelect = 'none'
     document.body.style.cursor = 'row-resize'
 
     const move = (moveEvent: PointerEvent) => {
       const rect = layout.getBoundingClientRect()
-      const [min, max] = topHeightBounds(rect.height)
+      const [min, max] = getTopBounds(rect.height)
       const height = clamp(startHeight + moveEvent.clientY - startY, min, max)
       topHeightRef.current = height
       setTopHeight(height)
@@ -345,21 +444,35 @@ export function TextDiffView() {
     const stop = () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', stop)
+      window.removeEventListener('pointercancel', stop)
+      window.removeEventListener('blur', stop)
+      if (typeof pointerId === 'number' && target.hasPointerCapture?.(pointerId)) {
+        target.releasePointerCapture(pointerId)
+      }
       document.body.style.userSelect = ''
       document.body.style.cursor = ''
       localStorage.setItem(TOP_HEIGHT_KEY, String(topHeightRef.current))
+      if (dragCleanupRef.current === stop) dragCleanupRef.current = null
     }
 
+    dragCleanupRef.current = stop
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', stop)
-  }, [])
+    window.addEventListener('pointercancel', stop)
+    window.addEventListener('blur', stop)
+  }, [getTopBounds])
 
   const startVerticalResize = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     const layout = layoutRef.current
     if (!layout) return
 
+    dragCleanupRef.current?.()
+    event.preventDefault()
     const startX = event.clientX
     const startRatio = leftWidthRatioRef.current
+    const target = event.currentTarget
+    const pointerId = event.pointerId
+    if (typeof pointerId === 'number' && target.setPointerCapture) target.setPointerCapture(pointerId)
     document.body.style.userSelect = 'none'
     document.body.style.cursor = 'col-resize'
 
@@ -378,14 +491,30 @@ export function TextDiffView() {
     const stop = () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', stop)
+      window.removeEventListener('pointercancel', stop)
+      window.removeEventListener('blur', stop)
+      if (typeof pointerId === 'number' && target.hasPointerCapture?.(pointerId)) {
+        target.releasePointerCapture(pointerId)
+      }
       document.body.style.userSelect = ''
       document.body.style.cursor = ''
       localStorage.setItem(LEFT_WIDTH_RATIO_KEY, String(leftWidthRatioRef.current))
+      if (dragCleanupRef.current === stop) dragCleanupRef.current = null
     }
 
+    dragCleanupRef.current = stop
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', stop)
+    window.addEventListener('pointercancel', stop)
+    window.addEventListener('blur', stop)
   }, [])
+
+  const [topHeightMin, topHeightMax] =
+    layoutMetrics.height > 0
+      ? topHeightBounds(layoutMetrics.height, layoutMetrics.chromeHeight)
+      : ([MIN_INPUT_HEIGHT, topHeight] as const)
+  const [leftWidthRatioMin, leftWidthRatioMax] =
+    layoutMetrics.width > 0 ? leftWidthRatioBounds(layoutMetrics.width) : ([0, 1] as const)
 
   return (
     <div className="w-full max-w-none flex-1 flex flex-col min-h-0 gap-2">
@@ -452,8 +581,16 @@ export function TextDiffView() {
           />
           <div
             data-testid="text-diff-vertical-resizer"
+            role="separator"
+            tabIndex={0}
+            aria-label={t('textDiff.layout.resizeWidth')}
+            aria-orientation="vertical"
+            aria-valuemin={Math.round(leftWidthRatioMin * 100)}
+            aria-valuemax={Math.round(leftWidthRatioMax * 100)}
+            aria-valuenow={Math.round(leftWidthRatio * 100)}
             onPointerDown={startVerticalResize}
-            className="w-2 flex-none cursor-col-resize touch-none"
+            onKeyDown={handleVerticalResizeKeyDown}
+            className="w-2 flex-none cursor-col-resize touch-none focus:outline-none focus:ring-2 focus:ring-accent/50"
           />
           <textarea
             ref={rightInputRef}
@@ -467,12 +604,21 @@ export function TextDiffView() {
         </div>
 
         <div
+          ref={horizontalResizerRef}
           data-testid="text-diff-horizontal-resizer"
+          role="separator"
+          tabIndex={0}
+          aria-label={t('textDiff.layout.resizeHeight')}
+          aria-orientation="horizontal"
+          aria-valuemin={Math.round(topHeightMin)}
+          aria-valuemax={Math.round(topHeightMax)}
+          aria-valuenow={Math.round(topHeight)}
           onPointerDown={startHorizontalResize}
-          className="h-2 flex-none cursor-row-resize touch-none"
+          onKeyDown={handleHorizontalResizeKeyDown}
+          className="h-2 flex-none cursor-row-resize touch-none focus:outline-none focus:ring-2 focus:ring-accent/50"
         />
 
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-surface px-3 py-1.5 text-[10px] font-mono text-muted">
+        <div ref={statsRef} data-testid="text-diff-stats" className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-surface px-3 py-1.5 text-[10px] font-mono text-muted">
           <span className="text-text">
             {t('textDiff.stats.differences', { n: stats.blocks })}
           </span>

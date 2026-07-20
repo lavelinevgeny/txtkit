@@ -56,6 +56,18 @@ function mockLayoutRect(width = 1000, height = 600) {
   }
 }
 
+function mockLayoutChrome(horizontalHeight = 8, statsHeight = 32) {
+  for (const [testId, height] of [
+    ['text-diff-horizontal-resizer', horizontalHeight],
+    ['text-diff-stats', statsHeight],
+  ] as const) {
+    Object.defineProperty(screen.getByTestId(testId), 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ left: 0, top: 0, width: 1000, height, right: 1000, bottom: height }),
+    })
+  }
+}
+
 beforeEach(() => {
   localStorage.clear()
   useStore.setState({ input: '', activeToolId: 'text-diff', locale: 'en' })
@@ -119,6 +131,21 @@ describe('TextDiffView layout', () => {
 
     expect(screen.getByTestId('text-diff-inputs')).toHaveStyle({ height: '260px' })
     expect(localStorage.getItem('txtkit.textDiff.topHeight')).toBe('260')
+  })
+
+  it('reserves the handle and stats row before the result pane minimum', () => {
+    renderTextDiff()
+    mockLayoutRect(1000, 500)
+    mockLayoutChrome(8, 32)
+    fireEvent.resize(window)
+
+    fireEvent.pointerDown(screen.getByTestId('text-diff-horizontal-resizer'), { clientY: 260 })
+    fireEvent.pointerMove(window, { clientY: 760 })
+    fireEvent.pointerUp(window)
+
+    const inputHeight = 500 - 8 - 32 - 240
+    expect(screen.getByTestId('text-diff-inputs')).toHaveStyle({ height: `${inputHeight}px` })
+    expect(500 - inputHeight - 8 - 32).toBe(240)
   })
 
   it('keeps both top panes at least 240px wide', () => {
@@ -185,5 +212,66 @@ describe('TextDiffView layout', () => {
     expect(localStorage.getItem('txtkit.textDiff.leftWidthRatio')).toBe(
       String((600 - 8 - 240) / 600),
     )
+  })
+
+  it('treats blank persisted values as invalid', () => {
+    localStorage.setItem('txtkit.textDiff.topHeight', '')
+    localStorage.setItem('txtkit.textDiff.leftWidthRatio', '')
+
+    renderTextDiff()
+
+    expect(screen.getByTestId('text-diff-inputs')).toHaveStyle({ height: '160px' })
+    expect(screen.getByPlaceholderText('Original…')).toHaveStyle({ width: '50%' })
+  })
+
+  it('cleans up a cancelled horizontal drag', () => {
+    renderTextDiff()
+    mockLayoutRect()
+    const inputs = screen.getByTestId('text-diff-inputs')
+
+    fireEvent.pointerDown(screen.getByTestId('text-diff-horizontal-resizer'), { clientY: 260 })
+    fireEvent.pointerMove(window, { clientY: 320 })
+    fireEvent.pointerCancel(window)
+    fireEvent.pointerMove(window, { clientY: 420 })
+
+    expect(inputs).toHaveStyle({ height: '220px' })
+    expect(localStorage.getItem('txtkit.textDiff.topHeight')).toBe('220')
+    expect(document.body.style.userSelect).toBe('')
+    expect(document.body.style.cursor).toBe('')
+  })
+
+  it('cleans up an active drag when the component unmounts', () => {
+    const { unmount } = renderTextDiff()
+    mockLayoutRect()
+
+    fireEvent.pointerDown(screen.getByTestId('text-diff-horizontal-resizer'), { clientY: 260 })
+    fireEvent.pointerMove(window, { clientY: 320 })
+    unmount()
+    fireEvent.pointerMove(window, { clientY: 420 })
+
+    expect(localStorage.getItem('txtkit.textDiff.topHeight')).toBe('220')
+    expect(document.body.style.userSelect).toBe('')
+    expect(document.body.style.cursor).toBe('')
+  })
+
+  it('supports keyboard resizing through accessible separators', () => {
+    renderTextDiff()
+    mockLayoutRect()
+    const horizontal = screen.getByRole('separator', { name: 'Resize input height' })
+    const vertical = screen.getByRole('separator', { name: 'Resize input panes' })
+
+    fireEvent.keyDown(horizontal, { key: 'ArrowDown' })
+    fireEvent.keyDown(vertical, { key: 'ArrowRight' })
+
+    expect(horizontal).toHaveAttribute('aria-orientation', 'horizontal')
+    expect(horizontal).toHaveAttribute('aria-valuenow', '176')
+    expect(vertical).toHaveAttribute('aria-orientation', 'vertical')
+    expect(vertical).toHaveAttribute('aria-valuenow', '52')
+    expect(screen.getByTestId('text-diff-inputs')).toHaveStyle({ height: '176px' })
+    expect(screen.getByPlaceholderText('Original…')).toHaveStyle({
+      width: `${(0.5 + 24 / 1000) * 100}%`,
+    })
+    expect(localStorage.getItem('txtkit.textDiff.topHeight')).toBe('176')
+    expect(localStorage.getItem('txtkit.textDiff.leftWidthRatio')).toBe('0.524')
   })
 })

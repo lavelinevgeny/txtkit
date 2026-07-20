@@ -249,6 +249,8 @@
   "textDiff.input.rightPlaceholder": "Изменённый текст…",
   "textDiff.stats.differences": "Различий: {n}",
   "textDiff.stats.copyRight": "Копировать правый",
+  "textDiff.layout.resizeHeight": "Изменить высоту полей ввода",
+  "textDiff.layout.resizeWidth": "Изменить ширину полей ввода",
   "textDiff.empty": "Вставьте тексты в обе панели, чтобы увидеть различия",
   "tools.text-diff.description": "Сравнение двух текстов бок о бок с построчной и пословной подсветкой различий.",
   "tools.text-diff.features.sideBySide.description": "Показывает оригинал и изменённый текст рядом, выравнивая строки и подсвечивая добавления и удаления.",

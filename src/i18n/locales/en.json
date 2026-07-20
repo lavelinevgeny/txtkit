@@ -249,6 +249,8 @@
   "textDiff.input.rightPlaceholder": "Changed text…",
   "textDiff.stats.differences": "Differences: {n}",
   "textDiff.stats.copyRight": "Copy right",
+  "textDiff.layout.resizeHeight": "Resize input height",
+  "textDiff.layout.resizeWidth": "Resize input panes",
   "textDiff.empty": "Paste text into both panes to see the differences",
   "tools.text-diff.description": "Compare two texts side by side with line and word-level difference highlighting.",
   "tools.text-diff.features.sideBySide.description": "Shows the original and the changed text next to each other, aligning lines and highlighting additions and deletions.",
