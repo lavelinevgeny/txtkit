@@ -10,6 +10,22 @@ const buttonIdle = `${buttonBase} border-border-dim bg-surface-dim text-muted ho
 const buttonActive = `${buttonBase} border-accent/60 bg-accent/15 text-accent`
 const buttonDanger = `${buttonBase} border-border-dim bg-surface-dim text-muted hover:border-red-400/40 hover:text-red-300`
 
+const TOP_HEIGHT_KEY = 'txtkit.textDiff.topHeight'
+const LEFT_WIDTH_RATIO_KEY = 'txtkit.textDiff.leftWidthRatio'
+const MIN_INPUT_HEIGHT = 120
+const MIN_RESULT_HEIGHT = 240
+const MIN_INPUT_WIDTH = 240
+
+function readLayoutNumber(key: string, fallback: number) {
+  const raw = localStorage.getItem(key)
+  const parsed = raw === null ? Number.NaN : Number(raw)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
+}
+
 // Row-level background tints per diff op (kept within the app palette).
 const rowBg: Record<DiffRow['op'], string> = {
   equal: '',
@@ -161,6 +177,21 @@ export function TextDiffView() {
   const [ignoreWhitespace, setIgnoreWhitespace] = useState(false)
   const [wordLevel, setWordLevel] = useState(true)
   const [syncScroll, setSyncScroll] = useState(true)
+  const layoutRef = useRef<HTMLDivElement>(null)
+  const [topHeight, setTopHeight] = useState(() => readLayoutNumber(TOP_HEIGHT_KEY, 160))
+  const [leftWidthRatio, setLeftWidthRatio] = useState(() =>
+    readLayoutNumber(LEFT_WIDTH_RATIO_KEY, 0.5),
+  )
+  const topHeightRef = useRef(topHeight)
+  const leftWidthRatioRef = useRef(leftWidthRatio)
+
+  useEffect(() => {
+    topHeightRef.current = topHeight
+  }, [topHeight])
+
+  useEffect(() => {
+    leftWidthRatioRef.current = leftWidthRatio
+  }, [leftWidthRatio])
 
   const rows = useMemo(
     () => diffRows(left, right, { ignoreCase, ignoreWhitespace, wordLevel }),
@@ -225,6 +256,10 @@ export function TextDiffView() {
     return () => window.removeEventListener('resize', measure)
   }, [measure])
 
+  useEffect(() => {
+    measure()
+  }, [measure, topHeight])
+
   const seek = useCallback((fraction: number) => {
     const el = diffRef.current
     if (!el) return
@@ -236,6 +271,71 @@ export function TextDiffView() {
     setLeft(right)
     setRight(left)
   }
+
+  const startHorizontalResize = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const layout = layoutRef.current
+    if (!layout) return
+
+    const startY = event.clientY
+    const startHeight = topHeightRef.current
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor = 'row-resize'
+
+    const move = (moveEvent: PointerEvent) => {
+      const rect = layout.getBoundingClientRect()
+      const height = clamp(
+        startHeight + moveEvent.clientY - startY,
+        MIN_INPUT_HEIGHT,
+        rect.height - MIN_RESULT_HEIGHT,
+      )
+      topHeightRef.current = height
+      setTopHeight(height)
+    }
+
+    const stop = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', stop)
+      document.body.style.userSelect = ''
+      document.body.style.cursor = ''
+      localStorage.setItem(TOP_HEIGHT_KEY, String(topHeightRef.current))
+    }
+
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', stop)
+  }, [])
+
+  const startVerticalResize = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const layout = layoutRef.current
+    if (!layout) return
+
+    const startX = event.clientX
+    const startRatio = leftWidthRatioRef.current
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor = 'col-resize'
+
+    const move = (moveEvent: PointerEvent) => {
+      const rect = layout.getBoundingClientRect()
+      const minRatio = MIN_INPUT_WIDTH / rect.width
+      const ratio = clamp(
+        startRatio + (moveEvent.clientX - startX) / rect.width,
+        minRatio,
+        1 - minRatio,
+      )
+      leftWidthRatioRef.current = ratio
+      setLeftWidthRatio(ratio)
+    }
+
+    const stop = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', stop)
+      document.body.style.userSelect = ''
+      document.body.style.cursor = ''
+      localStorage.setItem(LEFT_WIDTH_RATIO_KEY, String(leftWidthRatioRef.current))
+    }
+
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', stop)
+  }, [])
 
   return (
     <div className="w-full max-w-none flex-1 flex flex-col min-h-0 gap-2">
@@ -288,72 +388,86 @@ export function TextDiffView() {
         </div>
       </header>
 
-      <div className="grid grid-cols-2 gap-2">
-        <textarea
-          ref={leftInputRef}
-          value={left}
-          onChange={(e) => setLeft(e.target.value)}
-          onScroll={() => handleInputScroll('left')}
-          placeholder={t('textDiff.input.leftPlaceholder')}
-          spellCheck={false}
-          className="h-40 resize-y rounded-lg border border-border bg-[#09090b] p-3 font-mono text-xs text-text outline-none placeholder:text-muted/50 focus:border-accent/50"
-        />
-        <textarea
-          ref={rightInputRef}
-          value={right}
-          onChange={(e) => setRight(e.target.value)}
-          onScroll={() => handleInputScroll('right')}
-          placeholder={t('textDiff.input.rightPlaceholder')}
-          spellCheck={false}
-          className="h-40 resize-y rounded-lg border border-border bg-[#09090b] p-3 font-mono text-xs text-text outline-none placeholder:text-muted/50 focus:border-accent/50"
-        />
-      </div>
-
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-surface px-3 py-1.5 text-[10px] font-mono text-muted">
-        <span className="text-text">
-          {t('textDiff.stats.differences', { n: stats.blocks })}
-        </span>
-        <span className="text-success">+{stats.added}</span>
-        <span className="text-red-300">−{stats.removed}</span>
-        <span className="text-accent">~{stats.changed}</span>
-        <button
-          onClick={() => void copyToClipboard(right)}
-          className="ml-auto text-muted transition-colors hover:text-accent"
-        >
-          {t('textDiff.stats.copyRight')}
-        </button>
-      </div>
-
-      <div className="flex flex-1 min-h-[240px] gap-1.5">
-        <section
-          ref={diffRef}
-          id="text-diff-view"
-          data-testid="text-diff-view"
-          onScroll={measure}
-          className="min-w-0 flex-1 overflow-auto rounded-lg border border-border bg-[#09090b] font-mono text-xs leading-relaxed"
-        >
-          {rows.length === 0 ? (
-            <div className="flex h-full items-center justify-center px-4 py-8 text-center text-muted">
-              {t('textDiff.empty')}
-            </div>
-          ) : (
-            numbered.map(({ row, leftNo, rightNo }, i) => (
-              <div key={i} className={`grid grid-cols-2 ${rowBg[row.op]}`}>
-                <Pane cell={row.left} lineNo={leftNo} op={row.op} side="left" />
-                <Pane cell={row.right} lineNo={rightNo} op={row.op} side="right" />
-              </div>
-            ))
-          )}
-        </section>
-
-        {rows.length > 0 && (
-          <Minimap
-            ops={ops}
-            viewport={viewport}
-            onSeek={seek}
-            label={t('textDiff.minimap.label')}
+      <div ref={layoutRef} data-testid="text-diff-layout" className="flex flex-1 min-h-0 flex-col">
+        <div data-testid="text-diff-inputs" className="flex min-h-0" style={{ height: `${topHeight}px` }}>
+          <textarea
+            ref={leftInputRef}
+            value={left}
+            onChange={(e) => setLeft(e.target.value)}
+            onScroll={() => handleInputScroll('left')}
+            placeholder={t('textDiff.input.leftPlaceholder')}
+            spellCheck={false}
+            style={{ width: `${leftWidthRatio * 100}%` }}
+            className="h-full min-h-0 flex-none resize-none rounded-lg border border-border bg-[#09090b] p-3 font-mono text-xs text-text outline-none placeholder:text-muted/50 focus:border-accent/50"
           />
-        )}
+          <div
+            data-testid="text-diff-vertical-resizer"
+            onPointerDown={startVerticalResize}
+            className="w-2 flex-none cursor-col-resize touch-none"
+          />
+          <textarea
+            ref={rightInputRef}
+            value={right}
+            onChange={(e) => setRight(e.target.value)}
+            onScroll={() => handleInputScroll('right')}
+            placeholder={t('textDiff.input.rightPlaceholder')}
+            spellCheck={false}
+            className="h-full min-h-0 min-w-0 flex-1 resize-none rounded-lg border border-border bg-[#09090b] p-3 font-mono text-xs text-text outline-none placeholder:text-muted/50 focus:border-accent/50"
+          />
+        </div>
+
+        <div
+          data-testid="text-diff-horizontal-resizer"
+          onPointerDown={startHorizontalResize}
+          className="h-2 flex-none cursor-row-resize touch-none"
+        />
+
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-surface px-3 py-1.5 text-[10px] font-mono text-muted">
+          <span className="text-text">
+            {t('textDiff.stats.differences', { n: stats.blocks })}
+          </span>
+          <span className="text-success">+{stats.added}</span>
+          <span className="text-red-300">−{stats.removed}</span>
+          <span className="text-accent">~{stats.changed}</span>
+          <button
+            onClick={() => void copyToClipboard(right)}
+            className="ml-auto text-muted transition-colors hover:text-accent"
+          >
+            {t('textDiff.stats.copyRight')}
+          </button>
+        </div>
+
+        <div className="flex flex-1 min-h-[240px] gap-1.5">
+          <section
+            ref={diffRef}
+            id="text-diff-view"
+            data-testid="text-diff-view"
+            onScroll={measure}
+            className="min-w-0 flex-1 overflow-auto rounded-lg border border-border bg-[#09090b] font-mono text-xs leading-relaxed"
+          >
+            {rows.length === 0 ? (
+              <div className="flex h-full items-center justify-center px-4 py-8 text-center text-muted">
+                {t('textDiff.empty')}
+              </div>
+            ) : (
+              numbered.map(({ row, leftNo, rightNo }, i) => (
+                <div key={i} className={`grid grid-cols-2 ${rowBg[row.op]}`}>
+                  <Pane cell={row.left} lineNo={leftNo} op={row.op} side="left" />
+                  <Pane cell={row.right} lineNo={rightNo} op={row.op} side="right" />
+                </div>
+              ))
+            )}
+          </section>
+
+          {rows.length > 0 && (
+            <Minimap
+              ops={ops}
+              viewport={viewport}
+              onSeek={seek}
+              label={t('textDiff.minimap.label')}
+            />
+          )}
+        </div>
       </div>
     </div>
   )
