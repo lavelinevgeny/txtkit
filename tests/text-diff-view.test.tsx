@@ -12,6 +12,20 @@ function renderTextDiff() {
   )
 }
 
+function mockLayoutRect(width = 1000, height = 600) {
+  const layout = screen.getByTestId('text-diff-layout')
+  Object.defineProperty(layout, 'getBoundingClientRect', {
+    value: () => ({
+      left: 100,
+      top: 100,
+      width,
+      height,
+      right: 100 + width,
+      bottom: 100 + height,
+    }),
+  })
+}
+
 beforeEach(() => {
   localStorage.clear()
   useStore.setState({ input: '', activeToolId: 'text-diff', locale: 'en' })
@@ -25,15 +39,13 @@ describe('TextDiffView layout', () => {
     renderTextDiff()
 
     expect(screen.getByTestId('text-diff-inputs')).toHaveStyle({ height: '180px' })
-    expect(screen.getByLabelText('Original…')).toHaveStyle({ width: '35%' })
+    expect(screen.getByPlaceholderText('Original…')).toHaveStyle({ width: '35%' })
   })
 
   it('changes and persists the shared input height with the horizontal handle', () => {
     renderTextDiff()
+    mockLayoutRect()
     const inputs = screen.getByTestId('text-diff-inputs')
-    Object.defineProperty(inputs, 'getBoundingClientRect', {
-      value: () => ({ top: 100, width: 1000, height: 160, bottom: 260 }),
-    })
 
     fireEvent.pointerDown(screen.getByTestId('text-diff-horizontal-resizer'), { clientY: 260 })
     fireEvent.pointerMove(window, { clientY: 320 })
@@ -45,16 +57,57 @@ describe('TextDiffView layout', () => {
 
   it('changes and persists the column ratio with the vertical handle', () => {
     renderTextDiff()
-    const inputs = screen.getByTestId('text-diff-inputs')
-    Object.defineProperty(inputs, 'getBoundingClientRect', {
-      value: () => ({ left: 100, top: 0, width: 1000, height: 160, right: 1100, bottom: 160 }),
-    })
+    mockLayoutRect()
 
     fireEvent.pointerDown(screen.getByTestId('text-diff-vertical-resizer'), { clientX: 600 })
     fireEvent.pointerMove(window, { clientX: 700 })
     fireEvent.pointerUp(window)
 
-    expect(screen.getByLabelText('Original…')).toHaveStyle({ width: '60%' })
+    expect(screen.getByPlaceholderText('Original…')).toHaveStyle({ width: '60%' })
     expect(localStorage.getItem('txtkit.textDiff.leftWidthRatio')).toBe('0.6')
+  })
+
+  it('clamps the input area to its 120px minimum height', () => {
+    renderTextDiff()
+    mockLayoutRect()
+
+    fireEvent.pointerDown(screen.getByTestId('text-diff-horizontal-resizer'), { clientY: 260 })
+    fireEvent.pointerMove(window, { clientY: -240 })
+    fireEvent.pointerUp(window)
+
+    expect(screen.getByTestId('text-diff-inputs')).toHaveStyle({ height: '120px' })
+    expect(localStorage.getItem('txtkit.textDiff.topHeight')).toBe('120')
+  })
+
+  it('keeps 240px available for the result pane', () => {
+    renderTextDiff()
+    mockLayoutRect(1000, 500)
+
+    fireEvent.pointerDown(screen.getByTestId('text-diff-horizontal-resizer'), { clientY: 260 })
+    fireEvent.pointerMove(window, { clientY: 760 })
+    fireEvent.pointerUp(window)
+
+    expect(screen.getByTestId('text-diff-inputs')).toHaveStyle({ height: '260px' })
+    expect(localStorage.getItem('txtkit.textDiff.topHeight')).toBe('260')
+  })
+
+  it('keeps both top panes at least 240px wide', () => {
+    renderTextDiff()
+    mockLayoutRect(1000)
+
+    const verticalResizer = screen.getByTestId('text-diff-vertical-resizer')
+    fireEvent.pointerDown(verticalResizer, { clientX: 600 })
+    fireEvent.pointerMove(window, { clientX: -100 })
+    fireEvent.pointerUp(window)
+
+    expect(screen.getByPlaceholderText('Original…')).toHaveStyle({ width: '24%' })
+    expect(localStorage.getItem('txtkit.textDiff.leftWidthRatio')).toBe('0.24')
+
+    fireEvent.pointerDown(verticalResizer, { clientX: 600 })
+    fireEvent.pointerMove(window, { clientX: 1300 })
+    fireEvent.pointerUp(window)
+
+    expect(screen.getByPlaceholderText('Original…')).toHaveStyle({ width: '76%' })
+    expect(localStorage.getItem('txtkit.textDiff.leftWidthRatio')).toBe('0.76')
   })
 })
