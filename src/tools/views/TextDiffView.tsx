@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../../store/useStore'
 import { useTranslation } from '../../i18n/context'
 import { copyToClipboard } from '../../utils/clipboard'
@@ -15,6 +15,7 @@ const LEFT_WIDTH_RATIO_KEY = 'txtkit.textDiff.leftWidthRatio'
 const MIN_INPUT_HEIGHT = 120
 const MIN_RESULT_HEIGHT = 240
 const MIN_INPUT_WIDTH = 240
+const DIVIDER_WIDTH = 8
 
 function readLayoutNumber(key: string, fallback: number) {
   const raw = localStorage.getItem(key)
@@ -24,6 +25,17 @@ function readLayoutNumber(key: string, fallback: number) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
+}
+
+function topHeightBounds(layoutHeight: number) {
+  const max = Math.max(0, layoutHeight - MIN_RESULT_HEIGHT)
+  return [Math.min(MIN_INPUT_HEIGHT, max), max] as const
+}
+
+function leftWidthRatioBounds(layoutWidth: number) {
+  const min = MIN_INPUT_WIDTH / layoutWidth
+  const max = 1 - (MIN_INPUT_WIDTH + DIVIDER_WIDTH) / layoutWidth
+  return min <= max ? ([min, max] as const) : ([0.5, 0.5] as const)
 }
 
 // Row-level background tints per diff op (kept within the app palette).
@@ -193,6 +205,31 @@ export function TextDiffView() {
     leftWidthRatioRef.current = leftWidthRatio
   }, [leftWidthRatio])
 
+  const normalizeLayout = useCallback(() => {
+    const layout = layoutRef.current
+    if (!layout) return
+
+    const rect = layout.getBoundingClientRect()
+    if (rect.height > 0) {
+      const [min, max] = topHeightBounds(rect.height)
+      const height = clamp(topHeightRef.current, min, max)
+      if (height !== topHeightRef.current) {
+        topHeightRef.current = height
+        setTopHeight(height)
+        localStorage.setItem(TOP_HEIGHT_KEY, String(height))
+      }
+    }
+    if (rect.width > 0) {
+      const [min, max] = leftWidthRatioBounds(rect.width)
+      const ratio = clamp(leftWidthRatioRef.current, min, max)
+      if (ratio !== leftWidthRatioRef.current) {
+        leftWidthRatioRef.current = ratio
+        setLeftWidthRatio(ratio)
+        localStorage.setItem(LEFT_WIDTH_RATIO_KEY, String(ratio))
+      }
+    }
+  }, [])
+
   const rows = useMemo(
     () => diffRows(left, right, { ignoreCase, ignoreWhitespace, wordLevel }),
     [left, right, ignoreCase, ignoreWhitespace, wordLevel],
@@ -251,10 +288,26 @@ export function TextDiffView() {
     measure()
   }, [measure, numbered])
 
-  useEffect(() => {
-    window.addEventListener('resize', measure)
-    return () => window.removeEventListener('resize', measure)
-  }, [measure])
+  useLayoutEffect(() => {
+    const handleResize = () => {
+      normalizeLayout()
+      measure()
+    }
+
+    handleResize()
+    const layout = layoutRef.current
+    window.addEventListener('resize', handleResize)
+    let observer: ResizeObserver | null = null
+    if (typeof ResizeObserver !== 'undefined' && layout) {
+      observer = new ResizeObserver(handleResize)
+      observer.observe(layout)
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      observer?.disconnect()
+    }
+  }, [measure, normalizeLayout])
 
   useEffect(() => {
     measure()
@@ -283,11 +336,8 @@ export function TextDiffView() {
 
     const move = (moveEvent: PointerEvent) => {
       const rect = layout.getBoundingClientRect()
-      const height = clamp(
-        startHeight + moveEvent.clientY - startY,
-        MIN_INPUT_HEIGHT,
-        rect.height - MIN_RESULT_HEIGHT,
-      )
+      const [min, max] = topHeightBounds(rect.height)
+      const height = clamp(startHeight + moveEvent.clientY - startY, min, max)
       topHeightRef.current = height
       setTopHeight(height)
     }
@@ -315,11 +365,11 @@ export function TextDiffView() {
 
     const move = (moveEvent: PointerEvent) => {
       const rect = layout.getBoundingClientRect()
-      const minRatio = MIN_INPUT_WIDTH / rect.width
+      const [minRatio, maxRatio] = leftWidthRatioBounds(rect.width)
       const ratio = clamp(
         startRatio + (moveEvent.clientX - startX) / rect.width,
         minRatio,
-        1 - minRatio,
+        maxRatio,
       )
       leftWidthRatioRef.current = ratio
       setLeftWidthRatio(ratio)

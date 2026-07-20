@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { I18nProvider } from '../src/i18n/context'
 import { useStore } from '../src/store/useStore'
@@ -12,18 +12,48 @@ function renderTextDiff() {
   )
 }
 
+function renderTextDiffWithLayoutRect(width = 1000, height = 600) {
+  const original = HTMLElement.prototype.getBoundingClientRect
+  const getBoundingClientRect = vi
+    .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+    .mockImplementation(function () {
+      if (this.dataset.testid === 'text-diff-layout') {
+        return {
+          left: 100,
+          top: 100,
+          width,
+          height,
+          right: 100 + width,
+          bottom: 100 + height,
+        } as DOMRect
+      }
+      return original.call(this)
+    })
+  const result = renderTextDiff()
+  getBoundingClientRect.mockRestore()
+  return result
+}
+
 function mockLayoutRect(width = 1000, height = 600) {
   const layout = screen.getByTestId('text-diff-layout')
+  let dimensions = { width, height }
   Object.defineProperty(layout, 'getBoundingClientRect', {
+    configurable: true,
     value: () => ({
       left: 100,
       top: 100,
-      width,
-      height,
-      right: 100 + width,
-      bottom: 100 + height,
+      width: dimensions.width,
+      height: dimensions.height,
+      right: 100 + dimensions.width,
+      bottom: 100 + dimensions.height,
     }),
   })
+  return {
+    resize(nextWidth: number, nextHeight: number) {
+      dimensions = { width: nextWidth, height: nextHeight }
+      fireEvent.resize(window)
+    },
+  }
 }
 
 beforeEach(() => {
@@ -107,7 +137,53 @@ describe('TextDiffView layout', () => {
     fireEvent.pointerMove(window, { clientX: 1300 })
     fireEvent.pointerUp(window)
 
-    expect(screen.getByPlaceholderText('Original…')).toHaveStyle({ width: '76%' })
-    expect(localStorage.getItem('txtkit.textDiff.leftWidthRatio')).toBe('0.76')
+    expect(screen.getByPlaceholderText('Original…')).toHaveStyle({ width: '75.2%' })
+    expect(localStorage.getItem('txtkit.textDiff.leftWidthRatio')).toBe('0.752')
+  })
+
+  it('normalizes out-of-range saved dimensions when the layout mounts', () => {
+    localStorage.setItem('txtkit.textDiff.topHeight', '1000')
+    localStorage.setItem('txtkit.textDiff.leftWidthRatio', '2')
+    renderTextDiffWithLayoutRect()
+
+    expect(screen.getByTestId('text-diff-inputs')).toHaveStyle({ height: '360px' })
+    expect(screen.getByPlaceholderText('Original…')).toHaveStyle({ width: '75.2%' })
+    expect(localStorage.getItem('txtkit.textDiff.topHeight')).toBe('360')
+    expect(localStorage.getItem('txtkit.textDiff.leftWidthRatio')).toBe('0.752')
+  })
+
+  it('normalizes the layout after its available size changes', () => {
+    localStorage.setItem('txtkit.textDiff.topHeight', '300')
+    localStorage.setItem('txtkit.textDiff.leftWidthRatio', '0.7')
+    renderTextDiff()
+    const layout = mockLayoutRect()
+    fireEvent.resize(window)
+
+    layout.resize(600, 500)
+
+    expect(screen.getByTestId('text-diff-inputs')).toHaveStyle({ height: '260px' })
+    expect(screen.getByPlaceholderText('Original…')).toHaveStyle({
+      width: `${((600 - 8 - 240) / 600) * 100}%`,
+    })
+    expect(localStorage.getItem('txtkit.textDiff.topHeight')).toBe('260')
+    expect(localStorage.getItem('txtkit.textDiff.leftWidthRatio')).toBe(
+      String((600 - 8 - 240) / 600),
+    )
+  })
+
+  it('reserves the divider width when clamping the input panes', () => {
+    renderTextDiff()
+    mockLayoutRect(600)
+
+    fireEvent.pointerDown(screen.getByTestId('text-diff-vertical-resizer'), { clientX: 600 })
+    fireEvent.pointerMove(window, { clientX: 1300 })
+    fireEvent.pointerUp(window)
+
+    expect(screen.getByPlaceholderText('Original…')).toHaveStyle({
+      width: `${((600 - 8 - 240) / 600) * 100}%`,
+    })
+    expect(localStorage.getItem('txtkit.textDiff.leftWidthRatio')).toBe(
+      String((600 - 8 - 240) / 600),
+    )
   })
 })
