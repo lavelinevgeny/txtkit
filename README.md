@@ -23,6 +23,8 @@ npm install
 npm run dev
 ```
 
+`npm install` включает pre-commit хук из `.githooks/`, который проверяет коммиты на секреты через [gitleaks](https://github.com/gitleaks/gitleaks#installing). Если gitleaks не установлен, проверка пропускается; в CI она выполняется всегда.
+
 ## Тесты и линтинг
 
 ```bash
