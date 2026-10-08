@@ -62,3 +62,7 @@ npm run release:major   # 1.0.0 → 2.0.0
 ```
 
 Каждая команда выполняет: `lint → test → build → bump версии → коммит + тег → push`.
+
+## Лицензия
+
+[MIT](LICENSE)
