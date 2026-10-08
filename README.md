@@ -40,51 +40,14 @@ npm run build
 
 ## Деплой
 
-Проект развёрнут на **Cloudflare Pages**. Деплой — через **GitHub Actions** по тегу.
+Приложение полностью статическое: после `npm run build` содержимое `dist/` можно разместить на любом веб-сервере или статическом хостинге.
 
-### Первичное развёртывание (один раз)
-
-#### 1. Создать проект в Cloudflare Pages
-
-1. Собрать проект:
-   ```bash
-   npm run build
-   ```
-2. Войти на [dash.cloudflare.com](https://dash.cloudflare.com)
-3. В левом сайдбаре: **Compute** → **Workers & Pages**
-4. Нажать **Create application** → **Upload your static files**
-5. Выбрать каталог `dist/`
-6. Название проекта: `txtkit`
-
-#### 2. Создать API Token
-
-1. Cloudflare dashboard → иконка профиля (справа вверху) → **My Profile** → **API Tokens**
-2. **Create Token** → **Custom token**
-3. Permissions: **Account** → **Cloudflare Pages** → **Edit**
-4. Скопировать токен
-
-#### 3. Добавить секреты в GitHub
-
-1. Открыть `https://github.com/lavelinevgeny/txtkit/settings/secrets/actions`
-2. Добавить:
-   - `CLOUDFLARE_API_TOKEN` — токен из шага 2
-   - `CLOUDFLARE_ACCOUNT_ID` — взять из URL в Cloudflare: `dash.cloudflare.com/<account-id>/...`
-
-#### 4. Привязать домен txtkit.ru
-
-1. Cloudflare dashboard → **Add site** → ввести `txtkit.ru` → план **Free**
-2. Cloudflare покажет 2 NS-записи (вида `xxx.ns.cloudflare.com`)
-3. У регистратора домена заменить NS-записи на полученные от Cloudflare
-4. Дождаться делегирования DNS (до 24 часов)
-5. Cloudflare Pages → проект `txtkit` → **Custom domains** → добавить `txtkit.ru`
-
-#### 5. Включить защиту
-
-В Cloudflare dashboard для домена `txtkit.ru`:
-
-- **Security → WAF** → включить Managed Rules
-- **Security → Bots** → включить **Bot Fight Mode**
-- **Security → WAF → Rate limiting rules** → правило: 100 запросов / 10 сек / IP → Block
+> Раньше деплой выполнялся в Cloudflare Pages через GitHub Actions по тегу. Эта схема больше не используется, но её реализация сохранена в истории:
+>
+> ```bash
+> git show v0.0.3:.github/workflows/deploy.yml   # workflow
+> git show v0.0.3:README.md                      # инструкция по настройке
+> ```
 
 ### Релиз
 
@@ -97,5 +60,3 @@ npm run release:major   # 1.0.0 → 2.0.0
 ```
 
 Каждая команда выполняет: `lint → test → build → bump версии → коммит + тег → push`.
-
-GitHub Actions подхватит тег и задеплоит в Cloudflare Pages.

@@ -14,7 +14,7 @@ There is no separate `typecheck` script. Type checking runs as part of `build` v
 
 ## Verification order
 
-`lint → test → build` (this is what the release scripts and CI do).
+`lint → test → build` (this is what the release scripts do).
 
 ## Architecture
 
@@ -38,11 +38,11 @@ Single-page React app. All processing is client-side, no backend.
 - Setup file: `src/test-setup.ts` (imports `@testing-library/jest-dom` matchers).
 - Test files live in `tests/` and follow `<tool-name>.test.ts` naming.
 
-## CI / Deploy
+## Release / Deploy
 
-- GitHub Actions workflow (`.github/workflows/deploy.yml`) triggers on `v*` tags.
-- Deploys `dist/` to Cloudflare Pages via Wrangler.
-- Release scripts (`release:patch`/`minor`/`major`) run the full pipeline and push a tag.
+- Release scripts (`release:patch`/`minor`/`major`) run the full pipeline, bump the version and push a tag.
+- There is no deploy automation in the repo: `dist/` is a static build that can be served by any web server.
+- The former Cloudflare Pages deploy (GitHub Actions on `v*` tags) was removed; see `git show v0.0.3:.github/workflows/deploy.yml`.
 
 ## Language
 
