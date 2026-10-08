@@ -12,9 +12,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "prepare": "git config core.hooksPath .githooks || true",
-    "release:patch": "npm run lint && npm test && npm run build && npm version patch && git push --follow-tags",
-    "release:minor": "npm run lint && npm test && npm run build && npm version minor && git push --follow-tags",
-    "release:major": "npm run lint && npm test && npm run build && npm version major && git push --follow-tags"
+    "release:patch": "node scripts/release.mjs patch",
+    "release:minor": "node scripts/release.mjs minor",
+    "release:major": "node scripts/release.mjs major",
+    "release:tag": "node scripts/release.mjs tag"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.4",

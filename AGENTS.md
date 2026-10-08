@@ -40,9 +40,9 @@ Single-page React app. All processing is client-side, no backend.
 
 ## Release / Deploy
 
-- Release scripts (`release:patch`/`minor`/`major`) run the full pipeline, bump the version and push a tag.
+- `main` is protected by a ruleset: changes land only via PR with the required checks «Secret scan» and «Lint, test, build»; no direct pushes, force pushes or deletion.
+- Releases go through `scripts/release.mjs` in two steps: `release:patch`/`minor`/`major` run the full pipeline, bump the version on a `release/vX.Y.Z` branch and open a PR; after it is merged, `release:tag` tags `main` and pushes the tag. Requires the `gh` CLI.
 - There is no deploy automation in the repo: `dist/` is a static build that can be served by any web server.
-- The former Cloudflare Pages deploy (GitHub Actions on `v*` tags) was removed; see `git show v0.0.3:.github/workflows/deploy.yml`.
 
 ## Language
 
