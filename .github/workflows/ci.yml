@@ -17,6 +17,10 @@ jobs:
   gitleaks:
     name: Secret scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # The action lists PR commits via the API to scan only the PR range.
+      pull-requests: read
     steps:
       - uses: actions/checkout@v7
         with:
