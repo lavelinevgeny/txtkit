@@ -54,15 +54,25 @@ npm run build
 
 ### Релиз
 
-Одной командой — проверки, bump версии, коммит с тегом и push:
+Ветка `main` защищена: изменения попадают в неё только через PR с зелёным CI. Поэтому релиз делается в два шага (нужен [GitHub CLI](https://cli.github.com/) `gh`).
 
-```bash
-npm run release:patch   # 1.0.0 → 1.0.1
-npm run release:minor   # 1.0.0 → 1.1.0
-npm run release:major   # 1.0.0 → 2.0.0
-```
+1. Из чистого `main` запустить проверки и открыть PR с новой версией:
 
-Каждая команда выполняет: `lint → test → build → bump версии → коммит + тег → push`.
+   ```bash
+   npm run release:patch   # 1.0.0 → 1.0.1
+   npm run release:minor   # 1.0.0 → 1.1.0
+   npm run release:major   # 1.0.0 → 2.0.0
+   ```
+
+   Команда выполняет `lint → test → build → bump версии`, коммитит его в ветку `release/vX.Y.Z`, пушит её и открывает PR.
+
+2. Дождаться CI, смёржить PR и поставить тег:
+
+   ```bash
+   npm run release:tag
+   ```
+
+   Команда подтягивает `main`, ставит тег `vX.Y.Z` на текущий коммит и пушит его.
 
 ## Лицензия
 
