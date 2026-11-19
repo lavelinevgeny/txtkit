@@ -4,6 +4,8 @@ import type { ChangeEvent } from 'react'
 import { EditorView, highlightSpecialChars } from '@codemirror/view'
 import { SearchQuery, setSearchQuery as cmSetSearchQuery, findNext as cmFindNext, findPrevious as cmFindPrevious, replaceNext as cmReplaceNext, replaceAll as cmReplaceAll } from '@codemirror/search'
 
+import { ToolHeader } from '../../components/ToolHeader'
+import { buttonIdle, buttonActive, buttonDanger } from '../../components/toolButtonStyles'
 import { useStore } from '../../store/useStore'
 import { useTranslation } from '../../i18n/context'
 import { useTextPadStore } from '../text-pad/useTextPadStore'
@@ -396,11 +398,6 @@ async function loadBootstrapResult(): Promise<BootstrapResult> {
   })
 }
 
-const buttonBase =
-  'rounded-lg border px-2.5 py-1.5 text-xs font-mono transition-colors focus:outline-none focus:ring-2 focus:ring-accent/30'
-const buttonIdle = `${buttonBase} border-border-dim bg-surface-dim text-muted hover:border-accent/40 hover:text-accent`
-const buttonActive = `${buttonBase} border-accent/60 bg-accent/15 text-accent`
-const buttonDanger = `${buttonBase} border-border-dim bg-surface-dim text-muted hover:border-red-400/40 hover:text-red-300`
 const inputClass =
   'h-8 w-28 rounded-lg border border-border-dim bg-surface-dim px-2 text-xs font-mono text-text outline-none placeholder:text-muted/50 focus:border-accent/50'
 
@@ -408,7 +405,6 @@ export function TextPadView() {
   // ---- Global store (prefs only) ----
   const editorPrefs = useStore((s) => s.editorPrefs)
   const setEditorPrefs = useStore((s) => s.setEditorPrefs)
-  const setActiveToolId = useStore((s) => s.setActiveToolId)
   const { t } = useTranslation()
 
   // ---- TextPad store ----
@@ -473,7 +469,9 @@ export function TextPadView() {
       undoOverflowButtonRef.current?.focus()
     }
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') closeOverflow()
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      closeOverflow()
     }
     const closeOnOutsidePointerDown = (event: PointerEvent) => {
       if (!undoToastsRef.current?.contains(event.target as Node)) closeOverflow()
@@ -1397,83 +1395,70 @@ export function TextPadView() {
 
   return (
     <div ref={rootRef} className="w-full max-w-none flex-1 flex flex-col min-h-0 gap-2" data-testid="text-pad-view">
-      <header className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <button
-            onClick={() => setActiveToolId(null)}
-            className={buttonIdle}
-          >
-            {t('textPad.toolbar.backToTools')}
+      <ToolHeader icon="✎" title={t('textPad.title')}>
+        {pendingSourceInput !== null && (
+          <button onClick={handleImportSourceInput} className={buttonActive}>
+            {t('textPad.importFromInput.action')}
           </button>
-          <span className="text-base leading-none text-accent">✎</span>
-          <h2 className="text-sm font-semibold text-text">{t('textPad.title')}</h2>
-        </div>
-
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
-          {pendingSourceInput !== null && (
-            <button onClick={handleImportSourceInput} className={buttonActive}>
-              {t('textPad.importFromInput.action')}
-            </button>
-          )}
-          <button
-            onClick={() => setOperationsOpen((open) => !open)}
-            className={operationsOpen ? buttonActive : buttonIdle}
-          >
-            {t('textPad.toolbar.operations')} {operationsOpen ? '▴' : '▾'}
-          </button>
-          <button onClick={() => {
-            setGoToLineTotal(viewRef.current?.state.doc.lines ?? 0)
-            setSearchOpen(false)
-            setGoToLineOpen(true)
-            requestAnimationFrame(() => goToLineInputRef.current?.focus())
-          }} className={buttonIdle}>
-            {t('textPad.goToLine.title')}
-          </button>
-          <button onClick={() => {
-            setGoToLineOpen(false)
-            setSearchOpen(true)
-            requestAnimationFrame(() => searchInputRef.current?.focus())
-          }} className={buttonIdle}>
-            {t('textPad.search.title')}
-          </button>
-          <button
-            onClick={handleCopy}
-            className={buttonIdle}
-          >
-            {t('textPad.toolbar.copy')}
-          </button>
-          <button
-            onClick={handleUploadClick}
-            className={buttonIdle}
-          >
-            {t('textPad.toolbar.uploadTxt')}
-          </button>
-          <button
-            onClick={() => downloadTextFile(viewRef.current?.state.doc.toString() ?? '')}
-            className={buttonIdle}
-          >
-            {t('textPad.toolbar.downloadTxt')}
-          </button>
-          <button
-            onClick={() => setEditorPrefs({ lineWrapping: !editorPrefs.lineWrapping })}
-            className={editorPrefs.lineWrapping ? buttonActive : buttonIdle}
-          >
-            {t('textPad.toolbar.wrap')}
-          </button>
-          <button
-            onClick={() => setEditorPrefs({ showWhitespace: !editorPrefs.showWhitespace })}
-            className={editorPrefs.showWhitespace ? buttonActive : buttonIdle}
-          >
-            {t('textPad.toolbar.whitespace')}
-          </button>
-          <button
-            onClick={handleClear}
-            className={buttonDanger}
-          >
-            {t('textPad.toolbar.clear')}
-          </button>
-        </div>
-      </header>
+        )}
+        <button
+          onClick={() => setOperationsOpen((open) => !open)}
+          className={operationsOpen ? buttonActive : buttonIdle}
+        >
+          {t('textPad.toolbar.operations')} {operationsOpen ? '▴' : '▾'}
+        </button>
+        <button onClick={() => {
+          setGoToLineTotal(viewRef.current?.state.doc.lines ?? 0)
+          setSearchOpen(false)
+          setGoToLineOpen(true)
+          requestAnimationFrame(() => goToLineInputRef.current?.focus())
+        }} className={buttonIdle}>
+          {t('textPad.goToLine.title')}
+        </button>
+        <button onClick={() => {
+          setGoToLineOpen(false)
+          setSearchOpen(true)
+          requestAnimationFrame(() => searchInputRef.current?.focus())
+        }} className={buttonIdle}>
+          {t('textPad.search.title')}
+        </button>
+        <button
+          onClick={handleCopy}
+          className={buttonIdle}
+        >
+          {t('textPad.toolbar.copy')}
+        </button>
+        <button
+          onClick={handleUploadClick}
+          className={buttonIdle}
+        >
+          {t('textPad.toolbar.uploadTxt')}
+        </button>
+        <button
+          onClick={() => downloadTextFile(viewRef.current?.state.doc.toString() ?? '')}
+          className={buttonIdle}
+        >
+          {t('textPad.toolbar.downloadTxt')}
+        </button>
+        <button
+          onClick={() => setEditorPrefs({ lineWrapping: !editorPrefs.lineWrapping })}
+          className={editorPrefs.lineWrapping ? buttonActive : buttonIdle}
+        >
+          {t('textPad.toolbar.wrap')}
+        </button>
+        <button
+          onClick={() => setEditorPrefs({ showWhitespace: !editorPrefs.showWhitespace })}
+          className={editorPrefs.showWhitespace ? buttonActive : buttonIdle}
+        >
+          {t('textPad.toolbar.whitespace')}
+        </button>
+        <button
+          onClick={handleClear}
+          className={buttonDanger}
+        >
+          {t('textPad.toolbar.clear')}
+        </button>
+      </ToolHeader>
 
       {undoList.length > 0 && (
         <aside
@@ -1687,7 +1672,6 @@ export function TextPadView() {
           </button>
         </div>
       )}
-
 
       {searchOpen && (
         <div

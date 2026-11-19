@@ -62,6 +62,7 @@ export function TextPadTabBar({
 
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        event.preventDefault()
         setMenuOpen(false)
         moreTabsButtonRef.current?.focus()
       }
@@ -111,7 +112,7 @@ export function TextPadTabBar({
           const isActive = id === activeTabId
 
           return (
-            <div key={id} className="flex w-28 shrink-0 border-r border-border last:border-r-0">
+            <div key={id} className="flex w-28 shrink-0 border-r border-border">
               <button
                 data-tab-id={id}
                 data-active={isActive ? 'true' : undefined}
@@ -133,6 +134,22 @@ export function TextPadTabBar({
             </div>
           )
         })}
+        {/* Lives right after the last visible tab; capacity reserves room for it next to "⋯". */}
+        <button
+          className="shrink-0 px-3 py-2 text-muted hover:bg-surface-hover hover:text-foreground"
+          onClick={onNewTab}
+          title={t('textPad.tabs.newTab')}
+          aria-label={t('textPad.tabs.newTab')}
+        >
+          +
+        </button>
+        <div
+          className="min-w-0 flex-1 select-none"
+          data-testid="text-pad-tab-bar-empty"
+          onDoubleClick={onNewTab}
+          title={t('textPad.tabs.newTabHint')}
+          aria-hidden="true"
+        />
       </div>
       {hiddenTabIds.length > 0 && (
         <div className="relative shrink-0">
@@ -179,14 +196,6 @@ export function TextPadTabBar({
           )}
         </div>
       )}
-      <button
-        className="shrink-0 px-3 py-2 text-muted hover:text-foreground"
-        onClick={onNewTab}
-        title={t('textPad.tabs.newTab')}
-        aria-label={t('textPad.tabs.newTab')}
-      >
-        +
-      </button>
     </div>
   )
 }

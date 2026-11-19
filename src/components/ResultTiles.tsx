@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { ComponentType } from 'react'
 import type { TransformResult } from '../types/tool'
 import { useStore } from '../store/useStore'
@@ -9,8 +9,12 @@ import { ResultTile } from './ResultTile'
 import { JsonTree } from './JsonTree'
 import { BlockTree } from './BlockTree'
 import { useTranslation } from '../i18n/context'
+import { ResultViewer, type ResultViewerItem } from './ResultViewer'
+import { FrameIcon } from './ToolHeader'
+import { tileIconButton } from './toolButtonStyles'
+import type { TreeViewProps } from './treeFrame'
 
-const TREE_RENDERERS: Record<string, ComponentType<{ data: unknown }>> = {
+const TREE_RENDERERS: Record<string, ComponentType<TreeViewProps>> = {
   'json': JsonTree,
   'yaml': JsonTree,
   '1c-log-blocks': BlockTree,
@@ -36,13 +40,20 @@ interface GroupedResult {
   truncationWarning?: string
 }
 
-export function ResultTiles() {
+interface ResultTilesProps {
+  /** Развёрнутый режим: сетка на всю ширину панели, больше колонок. */
+  wide?: boolean
+}
+
+export function ResultTiles({ wide = false }: ResultTilesProps) {
   const { t, locale } = useTranslation()
   const input = useStore(s => s.input)
   const activeToolId = useStore(s => s.activeToolId)
   const [expanded, setExpanded] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [viewerItem, setViewerItem] = useState<ResultViewerItem | null>(null)
+  const closeViewer = useCallback(() => setViewerItem(null), [])
 
   const allResults = useMemo(() => {
     if (!input.trim()) return []
@@ -157,9 +168,12 @@ export function ResultTiles() {
   }
 
   let globalIndex = 0
+  const gridClassName = wide
+    ? 'grid grid-cols-1 gap-1.5 sm:grid-cols-2 2xl:grid-cols-3'
+    : 'grid grid-cols-2 gap-1.5'
 
   return (
-    <div className="w-full max-w-xl mx-auto mt-3">
+    <div className={wide ? 'w-full' : 'w-full max-w-xl mx-auto mt-3'}>
       {(searchedResults.length > 0 || search || hasAnyTree) && (
         <div className="mb-1.5">
           <div className="relative">
@@ -185,7 +199,7 @@ export function ResultTiles() {
       )}
       <div className="flex flex-col gap-3">
         {hasAnyTree && (
-          <div className="grid grid-cols-2 gap-1.5">
+          <div className={gridClassName}>
             {searchedTreeResults.map((tr) => {
               const treeTileId = `tree-${tr.result.treeKey}`
               const isTreeExpanded = expandedId === treeTileId
@@ -199,11 +213,30 @@ export function ResultTiles() {
                       if (window.getSelection()?.toString()) return
                       handleToggle(treeTileId)
                     }}
-                    className="bg-surface border border-accent rounded-lg px-3 py-2 col-span-2"
+                    className="bg-surface border border-accent rounded-lg px-3 py-2 col-span-full"
                   >
-                    <div className="text-[9px] text-accent font-medium mb-1">{tr.result.label}</div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="flex-1 text-[9px] text-accent font-medium">{tr.result.label}</div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setViewerItem({
+                            label: tr.result.label,
+                            value: tr.result.value,
+                            Tree: TreeComponent,
+                            treeData: tr.result.treeData,
+                          })
+                        }}
+                        aria-label={t('resultViewer.open')}
+                        title={t('resultViewer.open')}
+                        className={tileIconButton}
+                      >
+                        <FrameIcon name="maximize" />
+                      </button>
+                    </div>
                     <div onClick={e => e.stopPropagation()}>
-                      <TreeComponent data={tr.result.treeData} />
+                      <TreeComponent data={tr.result.treeData} size={wide ? 'wide' : 'compact'} />
                     </div>
                   </div>
                 )
@@ -231,7 +264,7 @@ export function ResultTiles() {
                 <span className="font-mono text-[10px] text-accent">{GROUP_META[group.toolId]?.icon}</span>
                 <span className="text-[10px] text-muted font-medium">{GROUP_META[group.toolId]?.label ?? group.toolId}</span>
               </div>
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className={gridClassName}>
                 {group.results.map((r, ri) => {
                   const tileId = `${r.toolId}-${r.result.label}`
                   return (
@@ -242,6 +275,8 @@ export function ResultTiles() {
                       isExpanded={expandedId === tileId}
                       onToggle={() => handleToggle(tileId)}
                       truncationWarning={r.truncationWarning}
+                      wide={wide}
+                      onMaximize={() => setViewerItem({ label: r.result.label, value: r.result.value })}
                     />
                   )
                 })}
@@ -266,6 +301,7 @@ export function ResultTiles() {
           {t('resultTiles.collapse')}
         </button>
       )}
+      {viewerItem && <ResultViewer item={viewerItem} onClose={closeViewer} />}
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { copyToClipboard } from '../utils/clipboard'
 import { useTranslation } from '../i18n/context'
+import { treeFrameClass, type TreeViewProps } from './treeFrame'
 import type { BlockChild, BlockNode } from '../tools/1c-blocks-utils'
 
 function childPreview(child: BlockChild): string {
@@ -115,16 +116,12 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
-interface BlockTreeProps {
-  data: unknown
-}
-
-export function BlockTree({ data }: BlockTreeProps) {
+export function BlockTree({ data, size }: TreeViewProps) {
   const nodes = data as BlockChild[]
   if (!Array.isArray(nodes)) return null
 
   return (
-    <div className="font-mono text-xs bg-zinc-900/50 rounded-lg p-3 max-h-80 overflow-y-auto scrollbar-thin border border-zinc-800">
+    <div className={treeFrameClass(size)}>
       {nodes.map((node, i) => (
         <BlockTreeNode
           key={i}

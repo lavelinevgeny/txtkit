@@ -36,6 +36,26 @@ function getInitialPrefs(): EditorPrefs {
   }
 }
 
+const MAXIMIZED_KEY = 'txtkit-maximized'
+
+function getInitialMaximized(): boolean {
+  if (!canUseLocalStorage()) return false
+  try {
+    return localStorage.getItem(MAXIMIZED_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function persistMaximized(value: boolean): void {
+  if (!canUseLocalStorage()) return
+  try {
+    localStorage.setItem(MAXIMIZED_KEY, value ? '1' : '0')
+  } catch {
+    return
+  }
+}
+
 function persistEditorPrefs(prefs: EditorPrefs): void {
   if (!canUseLocalStorage()) return
   try {
@@ -51,12 +71,15 @@ interface AppState {
   catalogOpen: boolean
   locale: Locale
   editorPrefs: EditorPrefs
+  /** Инструмент развёрнут на всё окно: без логотипа и нижней карусели. */
+  maximized: boolean
 
   setInput: (input: string) => void
   setActiveToolId: (id: string | null) => void
   setCatalogOpen: (open: boolean) => void
   setLocale: (locale: Locale) => void
   setEditorPrefs: (p: Partial<EditorPrefs>) => void
+  setMaximized: (maximized: boolean) => void
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -65,6 +88,7 @@ export const useStore = create<AppState>((set) => ({
   catalogOpen: false,
   locale: getInitialLocale(),
   editorPrefs: getInitialPrefs(),
+  maximized: getInitialMaximized(),
 
   setInput: (input) => set({ input }),
   setActiveToolId: (id) => set({ activeToolId: id }),
@@ -79,5 +103,9 @@ export const useStore = create<AppState>((set) => ({
       persistEditorPrefs(next)
       return { editorPrefs: next }
     })
+  },
+  setMaximized: (maximized) => {
+    persistMaximized(maximized)
+    set({ maximized })
   },
 }))
