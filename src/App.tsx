@@ -3,10 +3,10 @@ import { I18nProvider, useTranslation } from './i18n/context'
 import { useStore } from './store/useStore'
 import { BottomCarousel } from './components/BottomCarousel'
 import { CustomViewHost } from './components/CustomViewHost'
-import { DetectionBadge } from './components/DetectionBadge'
 import { FullCatalog } from './components/FullCatalog'
-import { ResultTiles } from './components/ResultTiles'
-import { SmartInput } from './components/SmartInput'
+import { TransformToolView } from './components/TransformToolView'
+import { MaximizeButton } from './components/ToolHeader'
+import { useMaximizeShortcuts } from './components/maximize'
 import { getToolById } from './tools/registry'
 
 function LocaleToggle() {
@@ -53,35 +53,39 @@ function AppInner() {
   const { t } = useTranslation()
   const activeToolId = useStore(s => s.activeToolId)
   const activeTool = activeToolId ? getToolById(activeToolId) : null
+  const isMaximized = useStore(s => s.maximized)
   const isCustomView = activeTool?.view === 'custom'
-  const contentClassName = isCustomView
-    ? 'flex-1 flex flex-col items-center pt-5 pb-3 px-3 lg:px-6 overflow-y-auto min-h-0'
-    : 'flex-1 flex flex-col items-center pt-16 pb-4 px-4 overflow-y-auto min-h-0'
+  useMaximizeShortcuts()
+
+  const contentClassName = isMaximized
+    ? 'flex-1 flex flex-col items-center p-2 sm:p-3 overflow-y-auto min-h-0'
+    : isCustomView
+      ? 'flex-1 flex flex-col items-center pt-5 pb-3 px-3 lg:px-6 overflow-y-auto min-h-0'
+      : 'flex-1 flex flex-col items-center pt-16 pb-4 px-4 overflow-y-auto min-h-0'
 
   return (
     <ErrorBoundary t={t}>
       <div className="h-dvh bg-[#09090b] flex flex-col overflow-hidden">
         <div className={contentClassName}>
-          <div className={isCustomView ? 'mb-3 flex items-center gap-2' : 'mb-5 flex items-center gap-2'}>
-            <h1 className="font-mono text-2xl font-bold">
-              <span className="text-accent">txt</span>
-              <span className="text-muted">kit</span>
-            </h1>
-            <LocaleToggle />
-          </div>
+          {!isMaximized && (
+            <div className={`${isCustomView ? 'mb-3' : 'mb-5'} flex items-center gap-2 [view-transition-name:app-brand]`}>
+              <h1 className="font-mono text-2xl font-bold">
+                <span className="text-accent">txt</span>
+                <span className="text-muted">kit</span>
+              </h1>
+              <LocaleToggle />
+              {!activeTool && <MaximizeButton subtle />}
+            </div>
+          )}
 
           {isCustomView && activeToolId ? (
             <CustomViewHost toolId={activeToolId} />
           ) : (
-            <>
-              <SmartInput />
-              <DetectionBadge />
-              <ResultTiles />
-            </>
+            <TransformToolView tool={activeTool ?? null} maximized={isMaximized} />
           )}
         </div>
 
-        <BottomCarousel />
+        {!isMaximized && <BottomCarousel />}
         <FullCatalog />
       </div>
     </ErrorBoundary>

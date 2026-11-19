@@ -2,6 +2,8 @@ import { useState } from 'react'
 import type { TransformResult } from '../types/tool'
 import { copyToClipboard } from '../utils/clipboard'
 import { useTranslation } from '../i18n/context'
+import { FrameIcon } from './ToolHeader'
+import { tileIconButton } from './toolButtonStyles'
 
 interface Props {
   result: TransformResult
@@ -9,9 +11,12 @@ interface Props {
   isExpanded?: boolean
   onToggle?: () => void
   truncationWarning?: string
+  /** Развёрнутый режим: больше места под раскрытое значение. */
+  wide?: boolean
+  onMaximize?: () => void
 }
 
-export function ResultTile({ result, accent, isExpanded, onToggle, truncationWarning }: Props) {
+export function ResultTile({ result, accent, isExpanded, onToggle, truncationWarning, wide, onMaximize }: Props) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
 
@@ -47,10 +52,10 @@ export function ResultTile({ result, accent, isExpanded, onToggle, truncationWar
         if (window.getSelection()?.toString()) return
         onToggle?.()
       }}
-      className="bg-surface border border-accent rounded-lg px-3 py-2 col-span-2 transition-all"
+      className="bg-surface border border-accent rounded-lg px-3 py-2 col-span-full transition-all"
     >
       <div className="text-[9px] text-accent font-medium mb-1">{result.label}</div>
-      <div className="font-mono text-xs text-text whitespace-pre-wrap break-all max-h-32 overflow-y-auto scrollbar-thin" onClick={e => e.stopPropagation()}>
+      <div className={`font-mono text-xs text-text whitespace-pre-wrap break-all overflow-y-auto scrollbar-thin ${wide ? 'max-h-[50dvh]' : 'max-h-32'}`} onClick={e => e.stopPropagation()}>
         {result.value}
       </div>
       {truncationWarning && (
@@ -59,7 +64,21 @@ export function ResultTile({ result, accent, isExpanded, onToggle, truncationWar
         </div>
       )}
       {result.value && (
-        <div className="flex justify-end mt-2">
+        <div className="flex justify-end gap-1.5 mt-2">
+          {onMaximize && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onMaximize()
+              }}
+              aria-label={t('resultViewer.open')}
+              title={t('resultViewer.open')}
+              className={tileIconButton}
+            >
+              <FrameIcon name="maximize" />
+            </button>
+          )}
           <button
             onClick={handleCopy}
             disabled={copied}

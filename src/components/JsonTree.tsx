@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { copyToClipboard } from '../utils/clipboard'
 import { useTranslation } from '../i18n/context'
+import { treeFrameClass, type TreeViewProps } from './treeFrame'
 
 interface JsonTreeNodeProps {
   keyName?: string
@@ -140,13 +141,9 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
-interface JsonTreeProps {
-  data: unknown
-}
-
-export function JsonTree({ data }: JsonTreeProps) {
+export function JsonTree({ data, size }: TreeViewProps) {
   return (
-    <div className="font-mono text-xs bg-zinc-900/50 rounded-lg p-3 max-h-80 overflow-y-auto scrollbar-thin border border-zinc-800">
+    <div className={treeFrameClass(size)}>
       <JsonTreeNode value={data} depth={0} isLast={true} />
     </div>
   )

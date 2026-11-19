@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import mermaid from 'mermaid'
+import { ToolHeader } from '../../components/ToolHeader'
+import { buttonIdle, buttonDanger, buttonDisabled } from '../../components/toolButtonStyles'
 import { useStore } from '../../store/useStore'
 import { useTranslation } from '../../i18n/context'
 import { copyToClipboard } from '../../utils/clipboard'
@@ -11,12 +13,6 @@ import {
   svgToPngBlob,
 } from './mermaidExport'
 
-const buttonBase =
-  'rounded-lg border px-2.5 py-1.5 text-xs font-mono transition-colors focus:outline-none focus:ring-2 focus:ring-accent/30'
-const buttonIdle = `${buttonBase} border-border-dim bg-surface-dim text-muted hover:border-accent/40 hover:text-accent`
-const buttonDanger = `${buttonBase} border-border-dim bg-surface-dim text-muted hover:border-red-400/40 hover:text-red-300`
-const buttonDisabled = 'disabled:opacity-40 disabled:hover:border-border-dim disabled:hover:text-muted'
-
 const STATUS_TIMEOUT_MS = 2000
 const INITIAL_VIEW: ZoomState = { zoom: 1, pan: { x: 0, y: 0 } }
 
@@ -27,7 +23,6 @@ const SAMPLE = 'graph TD\n  A[Начало] --> B{Условие}\n  B -->|да|
 export default function MermaidView() {
   const { t } = useTranslation()
   const sourceInput = useStore((s) => s.input)
-  const setActiveToolId = useStore((s) => s.setActiveToolId)
 
   const [code, setCode] = useState(sourceInput)
   const [svg, setSvg] = useState<string | null>(null)
@@ -260,93 +255,83 @@ export default function MermaidView() {
 
   return (
     <div className="w-full max-w-none flex-1 flex flex-col min-h-0 gap-2">
-      <header className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <button onClick={() => setActiveToolId(null)} className={buttonIdle}>
-            {t('mermaid.toolbar.backToTools')}
+      <ToolHeader icon="▶" title={t('mermaid.title')}>
+        <button onClick={() => changeCode(SAMPLE)} className={buttonIdle}>
+          {t('mermaid.toolbar.sample')}
+        </button>
+
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => zoomBy(-ZOOM_STEP)}
+            disabled={!svg}
+            aria-label={t('mermaid.toolbar.zoomOutAria')}
+            className={`${buttonIdle} ${buttonDisabled}`}
+          >
+            {t('mermaid.toolbar.zoomOut')}
           </button>
-          <span className="text-base leading-none text-accent">▶</span>
-          <h2 className="text-sm font-semibold text-text">{t('mermaid.title')}</h2>
+          {/* role="img": aria-label на голом span (role=generic) скринридеры
+              игнорируют. Значение входит в имя — без aria-live оно не
+              зачитывается спонтанно, но доступно по запросу. */}
+          <span
+            data-testid="mermaid-zoom-level"
+            role="img"
+            aria-label={`${t('mermaid.toolbar.zoomLevel')}: ${Math.round(view.zoom * 100)}%`}
+            className={`min-w-[3.25rem] text-center font-mono text-xs text-muted ${svg ? '' : 'opacity-40'}`}
+          >
+            {Math.round(view.zoom * 100)}%
+          </span>
+          <button
+            onClick={() => zoomBy(ZOOM_STEP)}
+            disabled={!svg}
+            aria-label={t('mermaid.toolbar.zoomInAria')}
+            className={`${buttonIdle} ${buttonDisabled}`}
+          >
+            {t('mermaid.toolbar.zoomIn')}
+          </button>
+          <button
+            onClick={resetView}
+            disabled={!svg}
+            aria-label={t('mermaid.toolbar.zoomResetAria')}
+            className={`${buttonIdle} ${buttonDisabled}`}
+          >
+            {t('mermaid.toolbar.zoomReset')}
+          </button>
         </div>
 
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
-          <button onClick={() => changeCode(SAMPLE)} className={buttonIdle}>
-            {t('mermaid.toolbar.sample')}
-          </button>
-
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => zoomBy(-ZOOM_STEP)}
-              disabled={!svg}
-              aria-label={t('mermaid.toolbar.zoomOutAria')}
-              className={`${buttonIdle} ${buttonDisabled}`}
-            >
-              {t('mermaid.toolbar.zoomOut')}
-            </button>
-            {/* role="img": aria-label на голом span (role=generic) скринридеры
-                игнорируют. Значение входит в имя — без aria-live оно не
-                зачитывается спонтанно, но доступно по запросу. */}
-            <span
-              data-testid="mermaid-zoom-level"
-              role="img"
-              aria-label={`${t('mermaid.toolbar.zoomLevel')}: ${Math.round(view.zoom * 100)}%`}
-              className={`min-w-[3.25rem] text-center font-mono text-xs text-muted ${svg ? '' : 'opacity-40'}`}
-            >
-              {Math.round(view.zoom * 100)}%
-            </span>
-            <button
-              onClick={() => zoomBy(ZOOM_STEP)}
-              disabled={!svg}
-              aria-label={t('mermaid.toolbar.zoomInAria')}
-              className={`${buttonIdle} ${buttonDisabled}`}
-            >
-              {t('mermaid.toolbar.zoomIn')}
-            </button>
-            <button
-              onClick={resetView}
-              disabled={!svg}
-              aria-label={t('mermaid.toolbar.zoomResetAria')}
-              className={`${buttonIdle} ${buttonDisabled}`}
-            >
-              {t('mermaid.toolbar.zoomReset')}
-            </button>
-          </div>
-
-          <button
-            onClick={() => void copyPng()}
-            disabled={!svg}
-            className={`${buttonIdle} ${buttonDisabled}`}
-          >
-            {t('mermaid.toolbar.copyPng')}
-          </button>
-          <button
-            onClick={() => void downloadPng()}
-            disabled={!svg}
-            aria-label={t('mermaid.toolbar.downloadPngAria')}
-            className={`${buttonIdle} ${buttonDisabled}`}
-          >
-            {t('mermaid.toolbar.downloadPng')}
-          </button>
-          <button
-            onClick={downloadSvg}
-            disabled={!svg}
-            aria-label={t('mermaid.toolbar.downloadSvgAria')}
-            className={`${buttonIdle} ${buttonDisabled}`}
-          >
-            {t('mermaid.toolbar.downloadSvg')}
-          </button>
-          <button
-            onClick={() => void copyToClipboard(svg ?? '')}
-            disabled={!svg}
-            className={`${buttonIdle} ${buttonDisabled}`}
-          >
-            {t('mermaid.toolbar.copySvg')}
-          </button>
-          <button onClick={() => changeCode('')} className={buttonDanger}>
-            {t('mermaid.toolbar.clear')}
-          </button>
-        </div>
-      </header>
+        <button
+          onClick={() => void copyPng()}
+          disabled={!svg}
+          className={`${buttonIdle} ${buttonDisabled}`}
+        >
+          {t('mermaid.toolbar.copyPng')}
+        </button>
+        <button
+          onClick={() => void downloadPng()}
+          disabled={!svg}
+          aria-label={t('mermaid.toolbar.downloadPngAria')}
+          className={`${buttonIdle} ${buttonDisabled}`}
+        >
+          {t('mermaid.toolbar.downloadPng')}
+        </button>
+        <button
+          onClick={downloadSvg}
+          disabled={!svg}
+          aria-label={t('mermaid.toolbar.downloadSvgAria')}
+          className={`${buttonIdle} ${buttonDisabled}`}
+        >
+          {t('mermaid.toolbar.downloadSvg')}
+        </button>
+        <button
+          onClick={() => void copyToClipboard(svg ?? '')}
+          disabled={!svg}
+          className={`${buttonIdle} ${buttonDisabled}`}
+        >
+          {t('mermaid.toolbar.copySvg')}
+        </button>
+        <button onClick={() => changeCode('')} className={buttonDanger}>
+          {t('mermaid.toolbar.clear')}
+        </button>
+      </ToolHeader>
 
       <div className="grid flex-1 min-h-[320px] grid-cols-1 gap-2 md:grid-cols-2">
         <section className="flex min-h-[240px] min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-[#09090b]">

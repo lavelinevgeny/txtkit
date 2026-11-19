@@ -62,6 +62,7 @@ export function TextPadTabBar({
 
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        event.preventDefault()
         setMenuOpen(false)
         moreTabsButtonRef.current?.focus()
       }

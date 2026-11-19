@@ -1,14 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { ToolHeader } from '../../components/ToolHeader'
+import { buttonIdle, buttonActive, buttonDanger } from '../../components/toolButtonStyles'
 import { useStore } from '../../store/useStore'
 import { useTranslation } from '../../i18n/context'
 import { copyToClipboard } from '../../utils/clipboard'
 import { diffRows, diffStats, type DiffRow, type DiffSeg } from '../../utils/text-diff-ops'
-
-const buttonBase =
-  'rounded-lg border px-2.5 py-1.5 text-xs font-mono transition-colors focus:outline-none focus:ring-2 focus:ring-accent/30'
-const buttonIdle = `${buttonBase} border-border-dim bg-surface-dim text-muted hover:border-accent/40 hover:text-accent`
-const buttonActive = `${buttonBase} border-accent/60 bg-accent/15 text-accent`
-const buttonDanger = `${buttonBase} border-border-dim bg-surface-dim text-muted hover:border-red-400/40 hover:text-red-300`
 
 const TOP_HEIGHT_KEY = 'txtkit.textDiff.topHeight'
 const LEFT_WIDTH_RATIO_KEY = 'txtkit.textDiff.leftWidthRatio'
@@ -189,7 +185,6 @@ function Minimap({
 export function TextDiffView() {
   const { t } = useTranslation()
   const sourceInput = useStore((s) => s.input)
-  const setActiveToolId = useStore((s) => s.setActiveToolId)
 
   const [left, setLeft] = useState(sourceInput)
   const [right, setRight] = useState('')
@@ -518,54 +513,44 @@ export function TextDiffView() {
 
   return (
     <div className="w-full max-w-none flex-1 flex flex-col min-h-0 gap-2">
-      <header className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <button onClick={() => setActiveToolId(null)} className={buttonIdle}>
-            {t('textDiff.toolbar.backToTools')}
-          </button>
-          <span className="text-base leading-none text-accent">⇄</span>
-          <h2 className="text-sm font-semibold text-text">{t('textDiff.title')}</h2>
-        </div>
-
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
-          <button onClick={swap} className={buttonIdle}>
-            {t('textDiff.toolbar.swap')}
-          </button>
-          <button
-            onClick={() => setIgnoreCase((v) => !v)}
-            className={ignoreCase ? buttonActive : buttonIdle}
-          >
-            {t('textDiff.toolbar.ignoreCase')}
-          </button>
-          <button
-            onClick={() => setIgnoreWhitespace((v) => !v)}
-            className={ignoreWhitespace ? buttonActive : buttonIdle}
-          >
-            {t('textDiff.toolbar.ignoreWhitespace')}
-          </button>
-          <button
-            onClick={() => setWordLevel((v) => !v)}
-            className={wordLevel ? buttonActive : buttonIdle}
-          >
-            {t('textDiff.toolbar.wordLevel')}
-          </button>
-          <button
-            onClick={() => setSyncScroll((v) => !v)}
-            className={syncScroll ? buttonActive : buttonIdle}
-          >
-            {t('textDiff.toolbar.syncScroll')}
-          </button>
-          <button
-            onClick={() => {
-              setLeft('')
-              setRight('')
-            }}
-            className={buttonDanger}
-          >
-            {t('textDiff.toolbar.clear')}
-          </button>
-        </div>
-      </header>
+      <ToolHeader icon="⇄" title={t('textDiff.title')}>
+        <button onClick={swap} className={buttonIdle}>
+          {t('textDiff.toolbar.swap')}
+        </button>
+        <button
+          onClick={() => setIgnoreCase((v) => !v)}
+          className={ignoreCase ? buttonActive : buttonIdle}
+        >
+          {t('textDiff.toolbar.ignoreCase')}
+        </button>
+        <button
+          onClick={() => setIgnoreWhitespace((v) => !v)}
+          className={ignoreWhitespace ? buttonActive : buttonIdle}
+        >
+          {t('textDiff.toolbar.ignoreWhitespace')}
+        </button>
+        <button
+          onClick={() => setWordLevel((v) => !v)}
+          className={wordLevel ? buttonActive : buttonIdle}
+        >
+          {t('textDiff.toolbar.wordLevel')}
+        </button>
+        <button
+          onClick={() => setSyncScroll((v) => !v)}
+          className={syncScroll ? buttonActive : buttonIdle}
+        >
+          {t('textDiff.toolbar.syncScroll')}
+        </button>
+        <button
+          onClick={() => {
+            setLeft('')
+            setRight('')
+          }}
+          className={buttonDanger}
+        >
+          {t('textDiff.toolbar.clear')}
+        </button>
+      </ToolHeader>
 
       <div ref={layoutRef} data-testid="text-diff-layout" className="flex flex-1 min-h-0 flex-col">
         <div data-testid="text-diff-inputs" className="flex min-h-0" style={{ height: `${topHeight}px` }}>

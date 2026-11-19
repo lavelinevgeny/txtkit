@@ -26,7 +26,7 @@ export function BottomCarousel() {
   const tools = CAROUSEL_ORDER.map(id => allTools.find(t => t.id === id)!).filter(Boolean)
 
   return (
-    <div className="w-full bg-surface border-t border-border px-1.5 py-3 sm:px-4 sm:py-2.5">
+    <div className="w-full bg-surface border-t border-border px-1.5 py-3 sm:px-4 sm:py-2.5 [view-transition-name:app-dock]">
       <div className="flex gap-2 sm:gap-1.5 items-center max-w-4xl mx-auto overflow-x-auto scrollbar-transparent">
         <button
           onClick={() => setCatalogOpen(true)}
