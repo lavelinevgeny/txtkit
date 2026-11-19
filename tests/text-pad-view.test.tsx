@@ -273,6 +273,23 @@ describe('TextPadView', () => {
     })
   })
 
+  it('keeps the new-tab button next to the last tab and opens a tab on empty-space double-click', async () => {
+    renderTextPad()
+    await waitForEditor()
+    const activeId = useTextPadStore.getState().activeTabId!
+
+    const newTabButton = screen.getByRole('button', { name: 'New tab' })
+    const lastTab = screen.getByTestId(`close-tab-${activeId}`).parentElement!
+    expect(lastTab.nextElementSibling).toBe(newTabButton)
+
+    fireEvent.doubleClick(screen.getByTestId('text-pad-tab-bar-empty'))
+    await waitFor(() => {
+      const state = useTextPadStore.getState()
+      expect(state.openTabIds).toHaveLength(2)
+      expect(state.tabsById[state.activeTabId!]?.title).toBe('pad2')
+    })
+  })
+
   it('creates exactly one initial document in StrictMode', async () => {
     render(
       <StrictMode>

@@ -302,6 +302,7 @@
   "tools.mermaid.features.autoRefresh.description": "Диаграмма автоматически обновляется при изменении текста с задержкой 400 мс.",
   "tools.mermaid.features.splitView.description": "Собственный редактор кода слева и предпросмотр справа, независимо от основного поля ввода.",
   "textPad.tabs.newTab": "Новая вкладка",
+  "textPad.tabs.newTabHint": "Двойной клик — новая вкладка",
   "textPad.tabs.closeTab": "Закрыть вкладку",
   "textPad.tabs.moreTabs": "Ещё вкладки",
   "textPad.tabs.closeTabFromMenu": "Закрыть {title}",
