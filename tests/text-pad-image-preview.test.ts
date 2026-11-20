@@ -149,6 +149,40 @@ it.each([[280, 75], [430, 125]])('uses the nearest visibly smaller step at viewp
   expect(widget.style.getPropertyValue('--pad-image-factor')).toBe(String(scale / 100))
 })
 
+it('keeps the controls pinned when a shrinking last image clamps the scroll position', async () => {
+  mockRangeLayout()
+  const { widget } = preview(true)
+  const editor = view!
+  const trigger = widget.querySelector('button')!
+  const panel = editor.dom.querySelector<HTMLElement>('[role=group]')!
+  const [minus, reset] = panel.querySelectorAll('button')
+  let contentHeight = 600
+  Object.defineProperties(editor.scrollDOM, {
+    clientWidth: { value: 500 }, clientHeight: { value: 200 }, scrollHeight: { get: () => contentHeight },
+  })
+  editor.scrollDOM.scrollTop = 400
+  const image = vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue(new DOMRect(10, 20, 100, 100))
+  trigger.click()
+  await waitFor(() => expect(panel.style.left).toBe('114px'))
+  minus.click()
+  contentHeight = 575
+  editor.scrollDOM.scrollTop = 375
+  image.mockReturnValue(new DOMRect(10, 45, 75, 75))
+  editor.scrollDOM.dispatchEvent(new Event('scroll'))
+  await new Promise(resolve => requestAnimationFrame(resolve))
+  expect(panel.style.left).toBe('114px')
+  expect(panel.style.top).toBe('20px')
+  minus.click()
+  expect(reset).toHaveTextContent('50%')
+  expect(document.activeElement).toBe(minus)
+
+  editor.scrollDOM.scrollTop = 350
+  image.mockReturnValue(new DOMRect(10, 70, 50, 50))
+  editor.scrollDOM.dispatchEvent(new Event('scroll'))
+  await waitFor(() => expect(panel.style.left).toBe('64px'))
+  expect(panel.style.top).toBe('70px')
+})
+
 it('runs history shortcuts on a focused control with Latin and Cyrillic layouts', () => {
   const { widget } = preview(true)
   widget.querySelector('button')!.click()

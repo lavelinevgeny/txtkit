@@ -33,7 +33,7 @@ export const imageControls = ViewPlugin.fromClass(class {
   available = 0
   viewport: number[] = []
   // Keep a stationary pointer over the same action as the image grows or shrinks.
-  pinned: { x: number; y: number } | null = null
+  pinned: { x: number; y: number; scrollTop: number } | null = null
 
   constructor(view: EditorView) {
     this.view = view
@@ -95,7 +95,10 @@ export const imageControls = ViewPlugin.fromClass(class {
       if (!binding || target.getAttribute('aria-disabled') === 'true') return
       const scale = binding.scale ?? 100
       if (this.panel.style.left) {
-        this.pinned = { x: parseFloat(this.panel.style.left), y: parseFloat(this.panel.style.top) }
+        this.pinned = {
+          x: parseFloat(this.panel.style.left), y: parseFloat(this.panel.style.top),
+          scrollTop: this.view.scrollDOM.scrollTop,
+        }
       }
       let next = 100
       if (target === this.plus) next = scale + imageScaleStep
@@ -169,11 +172,15 @@ export const imageControls = ViewPlugin.fromClass(class {
         const right = Math.min(scroll.left + view.scrollDOM.clientWidth, window.innerWidth)
         const bottom = Math.min(scroll.top + view.scrollDOM.clientHeight, window.innerHeight)
         // A taller image may grow the gutter without moving the visible editor.
-        const viewport = [
-          left, top, right, bottom, available, editor.left, editor.top,
-          view.scrollDOM.scrollLeft, view.scrollDOM.scrollTop,
-        ]
-        const pinned = viewport.every((value, i) => value === this.viewport[i]) ? this.pinned : null
+        const viewport = [left, top, right, bottom, available, editor.left, editor.top, view.scrollDOM.scrollLeft]
+        let pinned = this.pinned
+        if (pinned) {
+          // Shrinking a note can put the original scroll offset below its new end.
+          const maxTop = Math.max(0, view.scrollDOM.scrollHeight - view.scrollDOM.clientHeight)
+          const expectedTop = Math.min(pinned.scrollTop, maxTop)
+          if (Math.abs(view.scrollDOM.scrollTop - expectedTop) > 1 ||
+            viewport.some((value, i) => value !== this.viewport[i])) pinned = null
+        }
         const panel = this.panel.getBoundingClientRect()
         const gap = 4
         let x = image.left
