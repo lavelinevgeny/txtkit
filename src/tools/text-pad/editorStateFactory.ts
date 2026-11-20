@@ -1,9 +1,10 @@
 import { Compartment, EditorSelection, EditorState } from '@codemirror/state'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { bracketMatching, indentOnInput } from '@codemirror/language'
-import { highlightSelectionMatches, search } from '@codemirror/search'
+import { search } from '@codemirror/search'
 import { drawSelection, EditorView, highlightSpecialChars, keymap, lineNumbers } from '@codemirror/view'
-import type { SerializedSelection } from './types'
+import { loadPadImageFiles, padImageExtensions } from './padImageEditor'
+import type { PadImageBinding, PadImageFile, SerializedSelection } from './types'
 
 const wrappingCompartment = new Compartment()
 const whitespaceCompartment = new Compartment()
@@ -70,6 +71,9 @@ export { wrappingCompartment, whitespaceCompartment }
 
 export interface EditorStateParams {
   doc: string
+  images?: readonly PadImageBinding[]
+  imageFiles?: Record<string, PadImageFile>
+  imageServices?: { t: (key: string) => string; notify: (message: string) => void }
   selection?: SerializedSelection | null
   lineWrapping?: boolean
   showWhitespace?: boolean
@@ -108,7 +112,7 @@ export function createEditorState(params: EditorStateParams): EditorState {
     indentOnInput(),
     bracketMatching(),
     history(),
-    highlightSelectionMatches(),
+    padImageExtensions(params.images ?? [], params.imageServices),
     search(),
     wrappingCompartment.of(lineWrapping ? EditorView.lineWrapping : []),
     keymap.of([
@@ -118,9 +122,8 @@ export function createEditorState(params: EditorStateParams): EditorState {
   ]
 
   const normalized = normalizeSelection(selection, doc.length)
-  if (normalized) {
-    return EditorState.create({ doc, extensions, selection: normalized })
-  }
-
-  return EditorState.create({ doc, extensions })
+  const state = EditorState.create({ doc, extensions, selection: normalized })
+  return params.imageFiles
+    ? state.update({ effects: loadPadImageFiles.of(params.imageFiles) }).state
+    : state
 }

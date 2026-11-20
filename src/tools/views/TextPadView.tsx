@@ -1,6 +1,8 @@
-/* eslint-disable react-refresh/only-export-components, react-hooks/refs, react-hooks/set-state-in-effect, react-hooks/preserve-manual-memoization */
+/* eslint-disable react-refresh/only-export-components, react-hooks/set-state-in-effect */
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
+import type { EditorState } from '@codemirror/state'
+import { isolateHistory } from '@codemirror/commands'
 import { EditorView, highlightSpecialChars } from '@codemirror/view'
 import { SearchQuery, setSearchQuery as cmSetSearchQuery, findNext as cmFindNext, findPrevious as cmFindPrevious, replaceNext as cmReplaceNext, replaceAll as cmReplaceAll } from '@codemirror/search'
 
@@ -17,13 +19,21 @@ import {
   clearRecoverySnapshotFn,
 } from '../text-pad/useWorkspaceQueue'
 import {
-  deleteDocuments, getAllDocuments, getDocumentVersion, getWorkspace,
+  deleteDocuments, getAllDocuments, getDocumentVersion, getStoredPadImageIds, getWorkspace, readPadImage,
+  subscribePadDatabaseBlocked,
 } from '../../db/textPadRepository'
 import {
   compareDocumentVersions, confirmDocument, newestDocuments, pendingDocuments,
   pendingOpenSession, pendingWorkspace, rememberDocument, rememberOpenSession, rememberWorkspace,
 } from '../text-pad/pendingPadWrites'
 import { createPadArchive } from '../text-pad/padArchive'
+import {
+  allowPadImageReplacement, cancelPadImagePaste, clearPadImageCache, loadPadImageFiles,
+  imageServicesCompartment, missingPadImageFiles, padImageBindings, padImageFiles, padImageServices,
+  padPlainText, padSearchMatch, recoverPadImageFile,
+} from '../text-pad/padImageEditor'
+import type { EditorStateParams } from '../text-pad/editorStateFactory'
+import type { PadImageFile, PadImageRecovery } from '../text-pad/types'
 import { TextPadTabBar } from '../../components/TextPadTabBar'
 import { createEditorState, wrappingCompartment, whitespaceCompartment } from '../text-pad/editorStateFactory'
 import { getTextPadStats } from './textPadStats'
@@ -433,7 +443,7 @@ export function TextPadView() {
   // ---- Global store (prefs only) ----
   const editorPrefs = useStore((s) => s.editorPrefs)
   const setEditorPrefs = useStore((s) => s.setEditorPrefs)
-  const { t } = useTranslation()
+  const { t, locale } = useTranslation()
 
   // ---- TextPad store ----
   const store = useTextPadStore
@@ -462,6 +472,14 @@ export function TextPadView() {
   const [exportFailure, setExportFailure] = useState<string | null>(null)
   const [incompleteExport, setIncompleteExport] = useState(false)
   const tabActivation = useRef(0)
+  const editorDocument = useRef<string | null>(null)
+  const hydrationGeneration = useRef(0)
+  const diagnostics = useRef(new Map<string, PadImageRecovery[]>())
+  const [imageNotice, setImageNotice] = useState('')
+  const [imageReadError, setImageReadError] = useState(false)
+  const [databaseBlocked, setDatabaseBlocked] = useState(false)
+  useEffect(() => subscribePadDatabaseBlocked(setDatabaseBlocked), [])
+
   const [initialized, setInitialized] = useState(false)
   const [undoList, setUndoList] = useState<Array<{ id: string; title: string }>>([])
   const [undoOverflowOpen, setUndoOverflowOpen] = useState(false)
@@ -529,8 +547,8 @@ export function TextPadView() {
   editorPrefsRef.current = editorPrefs
 
   const stats = useMemo(() => {
-    const text = viewRef.current?.state.doc.toString() ?? ''
-    return getTextPadStats(text)
+    const state = viewRef.current?.state
+    return state ? getTextPadStats(state.doc.toString(), padImageBindings(state)) : getTextPadStats('')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTabId, documentVersion])
 
@@ -541,10 +559,108 @@ export function TextPadView() {
   useEffect(() => {
     const view = viewRef.current
     if (!view) return
-    view.dispatch({ effects: cmSetSearchQuery.of(new SearchQuery({ search: searchTerm, replace: replaceText, caseSensitive })) })
-  }, [searchTerm, replaceText, caseSensitive])
+    view.dispatch({ effects: cmSetSearchQuery.of(new SearchQuery({ search: searchOpen ? searchTerm : '', replace: replaceText, caseSensitive, test: padSearchMatch })) })
+  }, [searchOpen, searchTerm, replaceText, caseSensitive, activeTabId, initialized])
+
+  useEffect(() => {
+    const view = viewRef.current
+    if (view) view.dispatch({ effects: imageServicesCompartment.reconfigure(
+      padImageServices.of({ t, notify: setImageNotice }),
+    ) })
+  }, [locale, t, activeTabId, initialized])
 
   // ---- Helpers ----
+
+  function createPadState(params: EditorStateParams) {
+    return createEditorState({ ...params, imageServices: { t, notify: setImageNotice } })
+  }
+
+  function padWholeText() {
+    const state = viewRef.current?.state
+    return state ? padPlainText(state, t('textPad.image.label')) : ''
+  }
+
+  function hasPadImages() {
+    const state = viewRef.current?.state
+    return !!state && padImageBindings(state).length > 0
+  }
+
+  function padConfirmation(key: string) {
+    return hasPadImages() ? t('textPad.image.confirmReplace') : t(key)
+  }
+
+  function imagePatch(state: EditorState, id: string) {
+    const images = [...padImageBindings(state)]
+    const imageFiles: Record<string, PadImageFile> = Object.create(null)
+    for (const { imageId } of images) {
+      const file = recoverPadImageFile(state, imageId)
+      if (file) imageFiles[imageId] = file
+    }
+    return { images, recovery: diagnostics.current.get(id) ?? [], imageFiles }
+  }
+
+  // Immutable snapshots and CodeMirror history retain their own references.
+  async function releaseInactiveImages(id: string) {
+    function eligibleRuntime() {
+      if (editorDocument.current === id || pendingDocuments().has(id) ||
+          store.getState().persistenceStatus === 'memory-only') return
+      const closed = undoEntries.current.get(id)
+      const runtime = runtimeTabs.current.get(id) ?? closed?.runtimeState
+      if (runtime && !(closed ? closed.currentRevision > closed.savedRevision : isDirty(id))) return runtime
+    }
+    const runtime = eligibleRuntime()
+    if (!runtime) return
+    const files = padImageFiles(runtime.editorState)
+    const ids = Object.keys(files)
+    if (!ids.length) return
+    // Another browser tab may have deleted the persisted attachments despite
+    // this editor having a locally confirmed revision. Keep its only copies.
+    let stored: Set<string>
+    try {
+      stored = await getStoredPadImageIds(id)
+    } catch {
+      return
+    }
+    if (eligibleRuntime() !== runtime || padImageFiles(runtime.editorState) !== files) return
+    const evict = ids.filter(key => stored.has(key))
+    if (evict.length) {
+      runtime.editorState = runtime.editorState.update({ effects: clearPadImageCache.of(evict) }).state
+    }
+  }
+
+  async function hydrateImages(view: EditorView, id: string) {
+    const generation = ++hydrationGeneration.current
+    setImageReadError(false)
+    const files = padImageFiles(view.state)
+    const missing = padImageBindings(view.state).filter(({ imageId }) => !Object.hasOwn(files, imageId))
+    if (!missing.length) return
+    const reads = await Promise.allSettled(missing.map(({ imageId }) => readPadImage(id, imageId)))
+    if (generation !== hydrationGeneration.current || view !== viewRef.current) return
+    const loaded: Record<string, PadImageFile> = Object.create(null)
+    const lost = new Set<string>()
+    const bindings = new Set(padImageBindings(view.state).map(binding => binding.imageId))
+    let retry = false
+    for (const [index, result] of reads.entries()) {
+      const binding = missing[index]
+      if (!bindings.has(binding.imageId) || Object.hasOwn(padImageFiles(view.state), binding.imageId)) continue
+      const file = result.status === 'fulfilled' && result.value
+        ? result.value
+        : recoverPadImageFile(view.state, binding.imageId)
+      if (file) loaded[binding.imageId] = file
+      else if (result.status === 'rejected') retry = true
+      else lost.add(binding.imageId)
+    }
+    if (lost.size) {
+      const recovery = diagnostics.current.get(id) ?? []
+      diagnostics.current.set(id, [...recovery, ...missing.filter(b => lost.has(b.imageId))
+        .map(b => ({ ...b, reason: 'missing-file' }))])
+    }
+    view.dispatch({ effects: [
+      loadPadImageFiles.of(loaded),
+      ...(lost.size ? [missingPadImageFiles.of(lost)] : []),
+    ] })
+    setImageReadError(retry)
+  }
 
   function getLoggerRevision(tabId: string): number {
     return store.getState().currentRevisionById[tabId] ?? 0
@@ -563,6 +679,7 @@ export function TextPadView() {
     const currentActive = activeTabIdRef.current
     if (currentActive === tabId && viewRef.current) {
       return {
+        ...imagePatch(viewRef.current.state, tabId),
         content: viewRef.current.state.doc.toString(),
         selection: viewRef.current.state.selection.toJSON(),
         scrollTop: viewRef.current.scrollDOM.scrollTop,
@@ -573,6 +690,7 @@ export function TextPadView() {
     const rt = runtimeTabs.current.get(tabId)
     if (!rt) return null
     return {
+      ...imagePatch(rt.editorState, tabId),
       content: rt.editorState.doc.toString(),
       selection: rt.editorState.selection.toJSON(),
       scrollTop: rt.scrollTop,
@@ -645,7 +763,12 @@ export function TextPadView() {
     activeTabIdRef.current = id
     const view = viewRef.current
     if (!view) return
+    const previous = editorDocument.current
+    cancelPadImagePaste(view)
+    editorDocument.current = id
     view.setState(runtime.editorState)
+    if (previous && previous !== id) releaseInactiveImages(previous)
+    void hydrateImages(view, id)
     setDocumentVersion((v) => v + 1)
     if (currentRAF.current !== null) cancelAnimationFrame(currentRAF.current)
     const restoreId = id
@@ -695,8 +818,11 @@ export function TextPadView() {
         // Seed updatedAt clock from persisted records and build runtime tabs
         for (const doc of result.documents) {
           lastUpdatedAtById.current.set(doc.id, doc.updatedAt)
-          const state = createEditorState({
+          diagnostics.current.set(doc.id, doc.recovery ?? [])
+          const state = createPadState({
             doc: doc.content,
+            images: doc.images,
+            imageFiles: doc.imageFiles,
             selection: doc.selection,
             lineWrapping: editorPrefs.lineWrapping,
             showWhitespace: editorPrefs.showWhitespace,
@@ -724,7 +850,7 @@ export function TextPadView() {
         const docId = crypto.randomUUID()
         const createdAt = Date.now()
         lastUpdatedAtById.current.set(docId, createdAt)
-        const state = createEditorState({
+        const state = createPadState({
           doc: '',
           lineWrapping: editorPrefs.lineWrapping,
           showWhitespace: editorPrefs.showWhitespace,
@@ -773,6 +899,7 @@ export function TextPadView() {
     if (state.openTabIds.includes(doc.id)) state.markSaved(doc.id, doc.contentRevision)
     if (!pendingDocuments().has(doc.id)) state.setSaveError(doc.id, false)
     state.checkSaveErrorRecovery()
+    releaseInactiveImages(doc.id)
   }
 
   function reportSaveFailure(id: string, error: unknown): void {
@@ -795,7 +922,7 @@ export function TextPadView() {
     void saveRecord(doc).catch((error: unknown) => reportSaveFailure(id, error))
   }
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- helpers read the current editor and store through refs.
+
   const startSaveLoop = useCallback((id: string) => {
     if (!canSave()) {
       if (!disposed.current) {
@@ -843,7 +970,7 @@ export function TextPadView() {
     if (activeId && runtimeTabs.current.has(activeId)) {
       state = runtimeTabs.current.get(activeId)!.editorState
     } else {
-      state = createEditorState({ doc: '' })
+      state = createPadState({ doc: '' })
     }
 
     const view = new EditorView({
@@ -868,9 +995,14 @@ export function TextPadView() {
         if (trs.some((tr) => tr.docChanged || tr.selection)) nextDocumentUpdatedAt(tabId)
 
         // Revision bump + debounce only on content change
-        if (trs.some((tr) => tr.docChanged)) {
+        const bindingsChanged = trs.some(tr => padImageBindings(tr.startState) !== padImageBindings(tr.state))
+        const edited = trs.some(tr => tr.docChanged ||
+          (padImageBindings(tr.startState) !== padImageBindings(tr.state) &&
+            !tr.effects.some(effect => effect.is(missingPadImageFiles))))
+        if (edited || bindingsChanged) setDocumentVersion(v => v + 1)
+        // Loading diagnostics must not overwrite a newer revision saved by another window.
+        if (edited) {
           store.getState().bumpRevision(tabId)
-          setDocumentVersion((v) => v + 1)
 
           if (debounceTimers.current.has(tabId)) {
             clearTimeout(debounceTimers.current.get(tabId))
@@ -886,6 +1018,8 @@ export function TextPadView() {
       },
     })
     viewRef.current = view
+    editorDocument.current = activeId
+    if (activeId) void hydrateImages(view, activeId)
     setDocumentVersion((v) => v + 1)
 
     return () => {
@@ -900,7 +1034,9 @@ export function TextPadView() {
           createdAt: existing?.createdAt ?? Date.now(),
         })
       }
+      cancelPadImagePaste(view, message => window.alert(message))
       view.destroy()
+      editorDocument.current = null
       viewRef.current = null
     }
   }, [initialized])
@@ -961,7 +1097,7 @@ export function TextPadView() {
   }
 
   // ---- Tab actions: select ----
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- helpers read fresh state via refs/store.getState()
+
   const handleSelectTab = useCallback((id: string) => {
     if (id === activeTabIdRef.current) return
 
@@ -991,9 +1127,10 @@ export function TextPadView() {
   }, [])
 
   // ---- Persistence recovery (shared between quota and memory-only) ----
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- helpers read fresh state via refs/store.getState()
+
   const handleRetryPersistence = useCallback(async () => {
     try {
+      const retryIds = [...pendingDocuments().keys(), ...store.getState().openTabIds]
       await resumeWorkspacePersistence()
       setNewerDatabase(false)
       invalidateTextPadNormalization()
@@ -1003,6 +1140,7 @@ export function TextPadView() {
       } else if (state.persistenceStatus === 'quota-error') {
         state.clearStickyPersistenceError('quota-error')
       }
+      for (const id of retryIds) releaseInactiveImages(id)
       for (const id of store.getState().openTabIds) {
         if (isDirty(id) && canSave()) startSaveLoop(id)
       }
@@ -1012,14 +1150,14 @@ export function TextPadView() {
   }, [])
 
   // ---- Tab actions: create ----
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- helpers read fresh state via refs/store.getState()
+
   const handleNewTab = useCallback(() => {
     const s = store.getState()
     const nextNum = s.nextUntitledNumber
     const title = `pad${nextNum}`
     const id = crypto.randomUUID()
     const createdAt = Date.now()
-    const state = createEditorState({
+    const state = createPadState({
       doc: '',
       lineWrapping: editorPrefsRef.current.lineWrapping,
       showWhitespace: editorPrefsRef.current.showWhitespace,
@@ -1051,7 +1189,7 @@ export function TextPadView() {
   }, [])
 
   // ---- Tab actions: close ----
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- helpers read fresh state via refs/store.getState()
+
   const handleCloseTab = useCallback((id: string) => {
     const s = store.getState()
     if (!s.openTabIds.includes(id)) return
@@ -1076,7 +1214,7 @@ export function TextPadView() {
       newId = crypto.randomUUID()
       const createdAt = Date.now()
       const newTitle = 'pad1'
-      const editorState = createEditorState({
+      const editorState = createPadState({
         doc: '',
         lineWrapping: editorPrefsRef.current.lineWrapping,
         showWhitespace: editorPrefsRef.current.showWhitespace,
@@ -1130,11 +1268,12 @@ export function TextPadView() {
       newId ? [newId] : [],
     ).then(() => {
       reconcileClosedDocumentCommit(id, currentRev, undoEntries.current)
+      releaseInactiveImages(id)
     }).catch(() => {})
   }, [])
 
   // ---- Undo close ----
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- helpers read fresh state via refs/store.getState()
+
   const handleUndoClose = useCallback((id: string) => {
     const entry = undoEntries.current.get(id)
     if (!entry) return
@@ -1228,7 +1367,7 @@ export function TextPadView() {
   }, [handleNewTab, handleCloseTab, handleSelectTab])
 
   const handleCopy = () => {
-    void copyToClipboard(viewRef.current?.state.doc.toString() ?? '')
+    void copyToClipboard(padWholeText())
   }
 
   const replaceWholeDoc = (next: string, userEvent: string) => {
@@ -1236,12 +1375,14 @@ export function TextPadView() {
     if (!view) return
     view.dispatch({
       changes: { from: 0, to: view.state.doc.length, insert: next },
+      annotations: [allowPadImageReplacement.of(true), isolateHistory.of('full')],
       userEvent,
     })
   }
 
   const handleQuickOp = (op: 'removeEmptyLines' | 'removeDuplicateLines' | 'sortLines' | 'trimLines' | 'shuffleLines' | 'toLowerCase' | 'toUpperCase' | 'sentenceCase' | 'titleCase' | 'htmlEscape' | 'htmlUnescape' | 'urlEncode' | 'urlDecode' | 'formatJson' | 'minifyJson') => {
     const current = viewRef.current?.state.doc.toString() ?? ''
+    if (hasPadImages()) return
     const userEvent = `input.textPad.${op}`
     switch (op) {
       case 'removeEmptyLines':
@@ -1304,24 +1445,22 @@ export function TextPadView() {
 
   const handleAddPrefixSuffix = () => {
     const current = viewRef.current?.state.doc.toString() ?? ''
-    if (!prefix && !suffix) return
+    if ((!prefix && !suffix) || hasPadImages()) return
     replaceWholeDoc(addPrefixSuffix(current, { prefix, suffix }), 'input.textPad.addPrefixSuffix')
   }
 
   const handleImportSourceInput = () => {
     if (pendingSourceInput === null) return
+    if (hasPadImages() && !window.confirm(padConfirmation('textPad.confirmImportReplace'))) return
     replaceWholeDoc(pendingSourceInput, 'input.textPad.importSourceInput')
-    setPendingSourceInput(null)
+    if (!hasPadImages() && viewRef.current) setPendingSourceInput(null)
   }
 
   const handleClear = () => {
     const view = viewRef.current
     if (!view) return
-    if (window.confirm(t('textPad.confirmClear'))) {
-      view.dispatch({
-        changes: { from: 0, to: view.state.doc.length, insert: '' },
-        userEvent: 'input.textPad.clear',
-      })
+    if (window.confirm(padConfirmation('textPad.confirmClear'))) {
+      replaceWholeDoc('', 'input.textPad.clear')
     }
   }
 
@@ -1391,13 +1530,15 @@ export function TextPadView() {
     const view = viewRef.current
     const id = activeTabIdRef.current
     if (!file || !view || !id) return
-    if (view.state.doc.length && !window.confirm(t('textPad.confirmImportReplace'))) return
+    if (view.state.doc.length && !window.confirm(padConfirmation('textPad.confirmImportReplace'))) return
     const activation = tabActivation.current
+    const bindings = padImageBindings(view.state)
     const revision = getLoggerRevision(id)
     try {
       const text = await file.text()
       if (viewRef.current !== view || activeTabIdRef.current !== id ||
-          tabActivation.current !== activation || getLoggerRevision(id) !== revision) {
+          tabActivation.current !== activation || getLoggerRevision(id) !== revision ||
+          padImageBindings(view.state) !== bindings) {
         window.alert(t('textPad.file.importCancelled'))
         return
       }
@@ -1424,16 +1565,16 @@ export function TextPadView() {
     const closed = [...undoEntries.current.values()].map((entry) => {
       const { editorState, scrollTop, title, createdAt } = entry.runtimeState
       return {
-        id: entry.id, title, createdAt, scrollTop,
+        ...imagePatch(editorState, entry.id), id: entry.id, title, createdAt, scrollTop,
         content: editorState.doc.toString(), selection: editorState.selection.toJSON(),
         contentRevision: entry.currentRevision, updatedAt: lastUpdatedAtById.current.get(entry.id) ?? createdAt,
       }
     })
     const docs = newestDocuments(saved, closed, pendingDocuments().values(), buildRecoverySnapshots())
     try {
-      const blob = createPadArchive(docs)
+      const { blob, incomplete } = await createPadArchive(docs, partial)
       downloadPadFile(blob, 'txtkit-backup.json')
-      setIncompleteExport(enumerationFailed)
+      setIncompleteExport(incomplete || enumerationFailed)
     } catch (error) {
       const detail = error instanceof Error ? error.message : ''
       setExportFailure(t('textPad.file.unreadable', { detail }))
@@ -1462,6 +1603,7 @@ export function TextPadView() {
     return <div role="alert" className="p-3 text-sm text-text">{t('textPad.persistence.newerDatabase')}</div>
   }
 
+  const imageOperationsDisabled = hasPadImages()
   return (
     <div ref={rootRef} className="w-full max-w-none flex-1 flex flex-col min-h-0 gap-2" data-testid="text-pad-view">
       {newerDatabase && <p role="alert" className="text-sm text-text">{t('textPad.persistence.newerDatabase')}</p>}
@@ -1505,7 +1647,7 @@ export function TextPadView() {
           {t('textPad.toolbar.uploadTxt')}
         </button>
         <button
-          onClick={() => downloadTextFile(viewRef.current?.state.doc.toString() ?? '')}
+          onClick={() => downloadTextFile(padWholeText())}
           className={buttonIdle}
         >
           {t('textPad.toolbar.downloadTxt')}
@@ -1599,7 +1741,7 @@ export function TextPadView() {
             : persistenceStatus === 'memory-only' ? 'textPad.persistence.memoryOnly' : 'textPad.persistence.saveError')}</span>
           <button onClick={() => {
             const title = activeTabId ? tabsById[activeTabId]?.title ?? 'pad' : 'pad'
-            downloadTextFile(viewRef.current?.state.doc.toString() ?? '', `${title}.txt`)
+            downloadTextFile(padWholeText(), `${title}.txt`)
           }} className={buttonIdle}>{t('textPad.quota.exportCurrent')}</button>
           <button onClick={() => void handleExportAll()} className={buttonIdle}>{t('textPad.quota.exportAll')}</button>
           <button onClick={() => void handleRetryPersistence()} className={buttonIdle}>{t('textPad.persistence.retry')}</button>
@@ -1616,6 +1758,23 @@ export function TextPadView() {
       )}
       {incompleteExport && <p role="status" className="text-xs text-amber-200">{t('textPad.file.partialExport')}</p>}
 
+      {databaseBlocked && <p role="alert" className="text-xs text-amber-300">{t('textPad.image.databaseBlocked')}</p>}
+      {activeTabId && !!diagnostics.current.get(activeTabId)?.length && (
+        <div role="alert" className="flex items-center gap-2 text-xs text-amber-300">
+          {t('textPad.image.damaged')}
+          <button className={buttonIdle} onClick={() => void handleExportAll()}>{t('textPad.quota.exportAll')}</button>
+        </div>
+      )}
+      {imageReadError && <div role="alert" className="flex items-center gap-2 text-xs text-amber-300">
+        {t('textPad.image.loadError')}
+        <button className={buttonIdle} onClick={() => {
+          if (viewRef.current && activeTabId) void hydrateImages(viewRef.current, activeTabId)
+        }}>{t('textPad.persistence.retry')}</button>
+      </div>}
+      {imageNotice && <div role="status" className="flex items-center gap-2 text-xs text-amber-300">
+        {t(imageNotice)}
+        <button className={buttonIdle} onClick={() => setImageNotice('')}>{t('textPad.ops.formatErrorDismiss')}</button>
+      </div>}
       <input
         ref={fileInputRef}
         type="file"
@@ -1625,7 +1784,8 @@ export function TextPadView() {
       />
 
       {operationsOpen && (
-        <div className="flex flex-wrap items-start gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+        <fieldset disabled={imageOperationsDisabled} className="flex flex-wrap disabled:opacity-70 items-start gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+          {imageOperationsDisabled && <legend className="text-xs text-amber-300">{t('textPad.image.operationsDisabled')}</legend>}
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="mr-1 text-[10px] font-mono uppercase text-muted-dim">{t('textPad.group.lines')}</span>
             <button onClick={() => handleQuickOp('removeEmptyLines')} className={buttonIdle}>
@@ -1711,7 +1871,7 @@ export function TextPadView() {
               {t('textPad.ops.minifyJson')}
             </button>
           </div>
-        </div>
+        </fieldset>
       )}
 
       {formatError && (

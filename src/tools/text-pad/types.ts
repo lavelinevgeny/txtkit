@@ -5,7 +5,30 @@ export interface SerializedSelection {
   main: number
 }
 
-export interface DocumentRecord {
+export interface PadImageBinding {
+  offset: number
+  imageId: string
+}
+
+export interface PadImageFile {
+  mimeType: string
+  bytes: Uint8Array
+}
+
+export interface PadImageRecovery {
+  imageId: string
+  reason: string
+  offset?: number
+}
+
+interface DocumentImages {
+  images?: PadImageBinding[]
+  recovery?: PadImageRecovery[]
+  /** Bytes held by this snapshot. Persisted separately from document metadata. */
+  imageFiles?: Record<string, PadImageFile>
+}
+
+export interface DocumentRecord extends DocumentImages {
   id: string
   title: string
   content: string
@@ -16,7 +39,7 @@ export interface DocumentRecord {
   updatedAt: number
 }
 
-export interface DocumentContentPatch {
+export interface DocumentContentPatch extends DocumentImages {
   content: string
   selection: SerializedSelection | null
   scrollTop: number
