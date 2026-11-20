@@ -187,3 +187,28 @@ it('updates an existing image description when the UI language changes', async (
   act(() => useStore.getState().setLocale('ru'))
   expect(screen.getByRole('img', { name: 'Изображение из буфера' })).toBeInTheDocument()
 })
+
+it('autosaves a resize without typing and restores it when the note reopens', async () => {
+  vi.stubGlobal('URL', class extends URL {
+    static createObjectURL() { return 'blob:test' }
+    static revokeObjectURL() {}
+  })
+  const { editor, unmount } = await openPad()
+  const id = useTextPadStore.getState().activeTabId!
+  const imageId = await insertImage(editor)
+  await waitFor(async () => expect(await repo.readPadImage(id, imageId)).toBeDefined())
+  const before = await repo.getDocumentVersion(id)
+  fireEvent.click(screen.getByRole('button', { name: 'Image size' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Decrease image size' }))
+  await waitFor(async () => {
+    const [saved] = await repo.getAllDocuments()
+    expect(saved.images).toEqual([{ imageId, offset: 0, scale: 75 }])
+    expect(saved.contentRevision).toBe(before!.contentRevision + 1)
+    expect(saved.updatedAt).toBeGreaterThan(before!.updatedAt)
+  })
+  unmount()
+  const reopened = await openPad()
+  await waitFor(() => expect(padImageFiles(reopened.editor.state)[imageId]).toBeDefined())
+  fireEvent.click(screen.getByRole('button', { name: 'Image size' }))
+  expect(screen.getByRole('button', { name: /75%, Reset/ })).toBeVisible()
+})

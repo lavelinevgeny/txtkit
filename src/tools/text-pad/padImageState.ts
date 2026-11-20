@@ -3,6 +3,7 @@ import {
 } from '@codemirror/state'
 import type { ChangeDesc } from '@codemirror/state'
 import { invertedEffects, isolateHistory } from '@codemirror/commands'
+import { imageBinding, validImageScale } from './padImageSize'
 import { t } from '../../i18n/translate'
 import type { PadImageBinding, PadImageFile } from './types'
 
@@ -19,6 +20,7 @@ interface Attached extends PadImageBinding {
 
 export const padImageServices = Facet.define<{ t: typeof t; notify: (message: string) => void }>()
 export const allowPadImageReplacement = Annotation.define<boolean>()
+export const resizePadImage = StateEffect.define<{ imageId: string; scale: number }>()
 export const loadPadImageFiles = StateEffect.define<Files>()
 export const missingPadImageFiles = StateEffect.define<ReadonlySet<string>>()
 export const clearPadImageCache = StateEffect.define<readonly string[] | null>()
@@ -56,10 +58,16 @@ export const imageField = StateField.define<Images>({
     }
     for (const effect of tr.effects) {
       if (effect.is(attachImages)) {
-        bindings = [...bindings, ...effect.value.map(({ offset, imageId }) => ({ offset, imageId }))].sort((a, b) => a.offset - b.offset)
+        bindings = [...bindings, ...effect.value.map(imageBinding)].sort((a, b) => a.offset - b.offset)
         files = { ...files, ...Object.fromEntries(effect.value.map(i => [i.imageId, i.file])) }
         evicted = { ...evicted }
         for (const { imageId } of effect.value) delete evicted[imageId]
+      } else if (effect.is(resizePadImage) && validImageScale(effect.value.scale)) {
+        const { imageId, scale } = effect.value
+        const index = bindings.findIndex(binding => binding.imageId === imageId)
+        if (index >= 0 && (bindings[index].scale ?? 100) !== scale) {
+          bindings = bindings.map((binding, i) => i === index ? imageBinding({ ...binding, scale }) : binding)
+        }
       } else if (effect.is(loadPadImageFiles)) {
         files = filesFor(bindings, { ...files, ...effect.value })
         evicted = { ...evicted }
@@ -141,10 +149,16 @@ export const isolateImageEdits = EditorState.transactionExtender.of(tr =>
     ? { annotations: isolateHistory.of('full') } : null)
 
 export const imageHistory = invertedEffects.of(tr => {
-  if (!tr.docChanged) return []
+  if (!tr.docChanged && !tr.effects.some(e => e.is(resizePadImage))) return []
   let files = padImageFiles(tr.startState)
   const effects: StateEffect<unknown>[] = []
   for (const e of tr.effects) {
+    if (e.is(resizePadImage) && validImageScale(e.value.scale)) {
+      const binding = padImageBindings(tr.startState).find(b => b.imageId === e.value.imageId)
+      if (binding && (binding.scale ?? 100) !== e.value.scale) {
+        effects.push(resizePadImage.of({ imageId: binding.imageId, scale: binding.scale ?? 100 }))
+      }
+    }
     if (e.is(detachedFiles)) files = { ...files, ...e.value }
     if (e.is(attachImages)) effects.push(detachedFiles.of(Object.fromEntries(e.value.map(i => [i.imageId, i.file]))))
   }

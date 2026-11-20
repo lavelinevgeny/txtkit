@@ -1,3 +1,4 @@
+import { imageBinding } from './padImageSize'
 import { encodeBytes } from './padImageEncoding'
 import { readPadImage } from '../../db/textPadRepository'
 import type { DocumentRecord, PadImageFile, PadImageRecovery } from './types'
@@ -28,11 +29,11 @@ export async function createPadArchive(documents: DocumentRecord[], partial = fa
     const diagnostics = doc.recovery ?? []
     let serialized: string
     if (bindings.length || diagnostics.length) {
-      const images: Array<{ offset: number } & EncodedImage> = []
+      const images: Array<{ offset: number; scale?: number } & EncodedImage> = []
       const recovery: Array<PadImageRecovery & Partial<EncodedImage> & { fileReason?: string }> = []
       for (const binding of bindings) {
         const encoded = await encode(binding.imageId)
-        if (encoded) images.push({ offset: binding.offset, ...encoded })
+        if (encoded) images.push({ offset: binding.offset, scale: imageBinding(binding).scale, ...encoded })
         else recovery.push({ ...binding, reason: 'unavailable' })
       }
       for (const issue of diagnostics) {

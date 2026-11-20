@@ -3,6 +3,7 @@ import { EditorView } from '@codemirror/view'
 import { EditorSelection, StateEffect } from '@codemirror/state'
 import { copyLineDown, deleteCharBackward, moveLineDown, moveLineUp, redo, transposeChars, undo, undoDepth } from '@codemirror/commands'
 import { findNext, findPrevious, replaceAll, SearchQuery, setSearchQuery } from '@codemirror/search'
+import { resizePadImage } from '../src/tools/text-pad/padImageState'
 import { createEditorState } from '../src/tools/text-pad/editorStateFactory'
 import type { EditorStateParams } from '../src/tools/text-pad/editorStateFactory'
 import {
@@ -171,6 +172,23 @@ describe('Pad clipboard', () => {
 })
 
 describe('Pad image editing', () => {
+  it('undoes a single image resize, maps it through edits, and restores it after deletion', () => {
+    const first = { imageId: 'a', offset: 0 }
+    const second = { imageId: 'b', offset: 2 }
+    const v = editor({ doc: anchor + ' ' + anchor, images: [first, second], imageFiles: { a: source, b: source } })
+    v.dispatch({ effects: resizePadImage.of({ imageId: 'b', scale: 125 }) })
+    expect(padImageBindings(v.state)).toEqual([first, { ...second, scale: 125 }])
+    expect(undo(v)).toBe(true)
+    expect(padImageBindings(v.state)).toEqual([first, second])
+    expect(redo(v)).toBe(true)
+    v.dispatch({ changes: { from: 0, insert: 'ab' } })
+    select(v, 5)
+    deleteCharBackward(v)
+    expect(undo(v)).toBe(true)
+    expect(padImageBindings(v.state)).toEqual([{ ...first, offset: 2 }, { ...second, offset: 4, scale: 125 }])
+    expect(padImageFiles(v.state).b).toBe(source)
+  })
+
   it.each([
     [moveLineUp, 'x\n' + anchor, 2, 2],
     [moveLineUp, anchor + '\nx', 0, 2],

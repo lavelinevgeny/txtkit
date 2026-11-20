@@ -1,4 +1,5 @@
 import { openDB } from 'idb'
+import { imageBinding } from '../tools/text-pad/padImageSize'
 import type { DBSchema, IDBPDatabase, IDBPTransaction } from 'idb'
 import type {
   DocumentRecord,
@@ -90,7 +91,8 @@ function validatedImages(doc: DocumentRecord, fileIds: Set<string>) {
   const knownIds = new Set(recovery.map(entry => entry.imageId))
   const diagnosed = new Set(recovery.map(({ imageId, reason, offset }) =>
     JSON.stringify([imageId, reason, offset])))
-  for (const { offset, imageId } of bindings) {
+  for (const binding of bindings) {
+    const { offset, imageId } = binding
     knownIds.add(imageId)
     let reason: string | undefined
     if (countsByOffset.get(offset)! > 1 || countsById.get(imageId)! > 1) reason = 'conflicting-binding'
@@ -98,7 +100,7 @@ function validatedImages(doc: DocumentRecord, fileIds: Set<string>) {
     else if (!fileIds.has(imageId)) reason = 'missing-file'
 
     if (!reason) {
-      images.push({ imageId, offset })
+      images.push(imageBinding(binding))
     } else if (!diagnosed.has(JSON.stringify([imageId, reason, offset]))) {
       const entry: PadImageRecovery = { imageId, reason }
       if (typeof offset === 'number' && Number.isFinite(offset)) entry.offset = offset

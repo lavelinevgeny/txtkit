@@ -3,6 +3,8 @@ import type { Range } from '@codemirror/state'
 import { getSearchQuery, SearchCursor } from '@codemirror/search'
 import { Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view'
 import type { ViewUpdate } from '@codemirror/view'
+import { imageControls, imageControlsTheme } from './padImageControls'
+import { autoImageWidth, imageBinding } from './padImageSize'
 import { imageCharacterKeys } from './padImageCharacters'
 import { encodeBytes } from './padImageEncoding'
 import { clipboardEvents, clipboardSession, labeledCopy } from './padImageClipboard'
@@ -20,31 +22,65 @@ export const imageServicesCompartment = new Compartment()
 const disposePreviews = new WeakMap<HTMLElement, () => void>()
 class Preview extends WidgetType {
   readonly file?: PadImageFile
+  readonly binding: PadImageBinding
   readonly alt: string
   readonly fallback: string
-  constructor(file: PadImageFile | undefined, alt: string, fallback: string) {
+  readonly resizeLabel: string
+
+  constructor(file: PadImageFile | undefined, binding: PadImageBinding, alt: string, fallback: string, resizeLabel: string) {
     super()
     this.file = file
+    this.binding = binding
     this.alt = alt
     this.fallback = fallback
+    this.resizeLabel = resizeLabel
+  }
+  private sameSource(other: Preview) {
+    return this.binding.imageId === other.binding.imageId && this.file === other.file &&
+      this.alt === other.alt && this.fallback === other.fallback && this.resizeLabel === other.resizeLabel
   }
   eq(other: Preview) {
-    return this.file === other.file && this.alt === other.alt && this.fallback === other.fallback
+    return this.sameSource(other) && this.binding.scale === other.binding.scale
   }
-  toDOM() {
+  updateDOM(dom: HTMLElement, _view: EditorView, previous: Preview) {
+    if (!this.sameSource(previous)) return false
+    dom.style.setProperty('--pad-image-factor', String((this.binding.scale ?? 100) / 100))
+    return true
+  }
+  toDOM(view: EditorView) {
     const span = document.createElement('span')
     span.className = 'cm-pad-image'
     if (!this.file || !URL.createObjectURL) {
       span.textContent = this.alt
       return span
     }
+    span.style.setProperty('--pad-image-factor', String((this.binding.scale ?? 100) / 100))
+    const trigger = document.createElement('button')
+    trigger.type = 'button'
+    trigger.className = 'cm-pad-image-trigger'
+    trigger.dataset.imageId = this.binding.imageId
+    trigger.title = this.resizeLabel
+    trigger.setAttribute('aria-label', this.resizeLabel)
+    trigger.setAttribute('aria-expanded', 'false')
+    const hint = document.createElement('span')
+    hint.className = 'cm-pad-image-hint'
+    hint.setAttribute('aria-hidden', 'true')
     const img = document.createElement('img')
     img.alt = this.alt
     img.draggable = false
-    img.onload = () => EditorView.findFromDOM(span)?.requestMeasure()
+    img.onload = () => {
+      const base = autoImageWidth(img)
+      if (base) {
+        img.style.setProperty('--pad-image-base', base + 'px')
+        img.dataset.loaded = ''
+      }
+      view.requestMeasure()
+      view.plugin(imageControls)?.measure()
+    }
     const showError = () => {
       span.textContent = this.fallback
-      EditorView.findFromDOM(span)?.requestMeasure()
+      view.requestMeasure()
+      view.plugin(imageControls)?.measure()
     }
     const bytes = this.file.bytes
     const source = bytes.buffer instanceof ArrayBuffer
@@ -65,7 +101,8 @@ class Preview extends WidgetType {
       URL.revokeObjectURL(url)
     })
     img.src = url
-    span.append(img)
+    trigger.append(img, hint)
+    span.append(trigger)
     return span
   }
   destroy(dom: HTMLElement) {
@@ -76,39 +113,10 @@ class Preview extends WidgetType {
 
 const previews = EditorView.decorations.compute([imageField, padImageServices], state => {
   const { bindings, files } = state.field(imageField)
-  return Decoration.set(bindings.map(({ offset, imageId }) => Decoration.replace({
-    widget: new Preview(Object.hasOwn(files, imageId) ? files[imageId] : undefined, imageText(state, 'alt'), imageText(state, 'previewError')),
-  }).range(offset, offset + 1)))
-})
-
-const imageTheme = EditorView.baseTheme({
-  '.cm-pad-image img': {
-    maxHeight: '480px', maxWidth: 'var(--pad-image-width, 100%)',
-    width: 'auto', height: 'auto', verticalAlign: 'middle',
-  },
-})
-const measureImages = ViewPlugin.fromClass(class {
-  readonly observer?: ResizeObserver
-  constructor(view: EditorView) {
-    const gutter = view.scrollDOM.querySelector<HTMLElement>('.cm-gutters')
-    const measure = () => view.requestMeasure({
-      key: this,
-      read: () => {
-        const line = view.contentDOM.querySelector('.cm-line')
-        const style = line && getComputedStyle(line)
-        const padding = style ? parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) : 30
-        return Math.max(1, view.scrollDOM.clientWidth - (gutter?.offsetWidth ?? 0) - (padding || 0))
-      },
-      write: width => view.dom.style.setProperty('--pad-image-width', width + 'px'),
-    })
-    if (typeof ResizeObserver !== 'undefined') {
-      this.observer = new ResizeObserver(measure)
-      this.observer.observe(view.scrollDOM)
-      if (gutter) this.observer.observe(gutter)
-    }
-    measure()
-  }
-  destroy() { this.observer?.disconnect() }
+  return Decoration.set(bindings.map(binding => Decoration.replace({
+    widget: new Preview(Object.hasOwn(files, binding.imageId) ? files[binding.imageId] : undefined, binding,
+      imageText(state, 'alt'), imageText(state, 'previewError'), imageText(state, 'resize')),
+  }).range(binding.offset, binding.offset + 1)))
 })
 
 const selectionMark = Decoration.mark({ class: 'cm-selectionMatch' })
@@ -159,9 +167,9 @@ const matchHighlights = ViewPlugin.fromClass(class {
 export function padImageExtensions(images: readonly PadImageBinding[],
   services?: { t: (key: string) => string; notify: (message: string) => void }) {
   return [
-    imageField.init(() => ({ bindings: images, files: {}, evicted: {} })),
+    imageField.init(() => ({ bindings: images.map(imageBinding), files: {}, evicted: {} })),
     imageServicesCompartment.of(services ? padImageServices.of(services) : []),
-    imageGuard, imageHistory, isolateImageEdits, imageTheme, measureImages,
+    imageGuard, imageHistory, isolateImageEdits, imageControlsTheme, imageControls,
     Prec.highest([previews, imageCharacterKeys, clipboardEvents, clipboardSession]), labeledCopy, matchHighlights,
   ]
 }
