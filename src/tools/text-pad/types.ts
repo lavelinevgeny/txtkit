@@ -6,6 +6,7 @@ export interface SerializedSelection {
 }
 
 export interface PadImageBinding {
+  scale?: number
   offset: number
   imageId: string
 }

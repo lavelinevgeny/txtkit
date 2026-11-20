@@ -118,8 +118,9 @@ describe('text pad image storage', () => {
       expect(get.mock.contexts.some(store => store.name === 'images')).toBe(false)
       expect(getAll.mock.contexts.some(store => store.name === 'images')).toBe(false)
       await updateDocument(doc.id, {
-        ...doc, content: '🙌\uFFFC', images: [{ offset: 2, imageId: 'photo' }], contentRevision: 1,
+        ...doc, content: '🙌\uFFFC', images: [{ offset: 2, imageId: 'photo', scale: 150 }], contentRevision: 1,
       })
+      expect((await getAllDocuments())[0].images).toEqual([{ offset: 2, imageId: 'photo', scale: 150 }])
       expect(add.mock.contexts.some(store => store.name === 'images')).toBe(false)
       expect(put.mock.contexts.some(store => store.name === 'images')).toBe(false)
       expect(put.mock.contexts.some(store => store.name === 'documents')).toBe(true)
@@ -158,7 +159,7 @@ describe('text pad image storage', () => {
     await getWorkspace()
     const raw = await openDB(name, 2)
     const images = [
-      { imageId: 'last', offset: 8 }, { imageId: 'conflictA', offset: 1 }, { imageId: 'conflictB', offset: 1 },
+      { imageId: 'last', offset: 8, scale: 37 }, { imageId: 'conflictA', offset: 1 }, { imageId: 'conflictB', offset: 1 },
       { imageId: 'same', offset: 3 }, { imageId: 'same', offset: 4 }, { imageId: 'text', offset: 0 },
       { imageId: 'outside', offset: 99 }, { imageId: 'missing', offset: 6 }, { imageId: 'first', offset: 2 },
     ]

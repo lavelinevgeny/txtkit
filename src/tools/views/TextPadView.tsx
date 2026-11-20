@@ -992,13 +992,12 @@ export function TextPadView() {
           createdAt: existing?.createdAt ?? Date.now(),
         })
 
-        if (trs.some((tr) => tr.docChanged || tr.selection)) nextDocumentUpdatedAt(tabId)
-
         // Revision bump + debounce only on content change
         const bindingsChanged = trs.some(tr => padImageBindings(tr.startState) !== padImageBindings(tr.state))
         const edited = trs.some(tr => tr.docChanged ||
           (padImageBindings(tr.startState) !== padImageBindings(tr.state) &&
             !tr.effects.some(effect => effect.is(missingPadImageFiles))))
+        if (edited || trs.some(tr => tr.selection)) nextDocumentUpdatedAt(tabId)
         if (edited || bindingsChanged) setDocumentVersion(v => v + 1)
         // Loading diagnostics must not overwrite a newer revision saved by another window.
         if (edited) {
