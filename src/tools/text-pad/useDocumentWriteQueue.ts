@@ -1,10 +1,12 @@
 import type { DocumentContentPatch, WriteResult } from './types'
+import { compareDocumentVersions } from './pendingPadWrites'
 import { updateDocument } from '../../db/textPadRepository'
 import { waitForDocumentCreation } from './useWorkspaceQueue'
 
 interface QueuedWrite {
   patch: DocumentContentPatch
   waiters: Array<{
+    superseded: boolean
     resolve: (result: WriteResult) => void
     reject: (error: unknown) => void
   }>
@@ -22,7 +24,7 @@ async function processQueue(id: string): Promise<void> {
       await waitForDocumentCreation(id)
       const result = await updateDocument(id, write.patch)
       for (const w of write.waiters) {
-        w.resolve(result)
+        w.resolve(w.superseded ? 'superseded' : result)
       }
     } catch (err) {
       for (const w of write.waiters) {
@@ -49,7 +51,7 @@ export function enqueueDocumentWrite(
       docWriteQueues.set(id, queue)
     }
 
-    const waiter = { resolve, reject }
+    const waiter = { resolve, reject, superseded: false }
 
     if (queue.length === 0) {
       queue.push({ patch, waiters: [waiter] })
@@ -57,11 +59,14 @@ export function enqueueDocumentWrite(
     } else if (queue.length === 1) {
       queue.push({ patch, waiters: [waiter] })
     } else {
-      const old = queue[1]
-      for (const w of old.waiters) {
-        w.resolve('superseded')
+      const pending = queue[1]
+      if (compareDocumentVersions(patch, pending.patch) >= 0) {
+        for (const previous of pending.waiters) previous.superseded = true
+        pending.patch = patch
+      } else {
+        waiter.superseded = true
       }
-      queue[1] = { patch, waiters: [waiter] }
+      pending.waiters.push(waiter)
     }
   })
 }

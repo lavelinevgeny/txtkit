@@ -1,9 +1,11 @@
 import { StrictMode } from 'react'
 import { EditorView } from '@codemirror/view'
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import 'fake-indexeddb/auto'
+import * as repository from '../src/db/textPadRepository'
+import { pendingDocuments, pendingOpenSession, pendingWorkspace } from '../src/tools/text-pad/pendingPadWrites'
 import { I18nProvider } from '../src/i18n/context'
 import { useStore } from '../src/store/useStore'
 import { useTextPadStore } from '../src/tools/text-pad/useTextPadStore'
@@ -83,6 +85,9 @@ beforeAll(() => {
 })
 
 afterEach(async () => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
   cleanup()
   await new Promise((resolve) => setTimeout(resolve, 0))
   await resetTextPadRepositoryForTests()
@@ -495,5 +500,232 @@ describe('TextPadView', () => {
     await waitFor(async () => {
       expect((await getWorkspace())?.openTabIds).toContain(initialId)
     })
+  })
+})
+
+function liveEditor() {
+  return EditorView.findFromDOM(screen.getByTestId('text-pad-editor-host').querySelector('.cm-editor')!)!
+}
+
+function interceptArchiveDownload() {
+  const downloads: Blob[] = []
+  const createObjectURL = vi.fn((blob: Blob) => { downloads.push(blob); return 'blob:backup' })
+  const original = URL
+  vi.stubGlobal('URL', class extends original {
+    static createObjectURL = createObjectURL
+    static revokeObjectURL = vi.fn()
+  })
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+  return async () => {
+    await waitFor(() => expect(downloads).toHaveLength(1))
+    const text = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result))
+      reader.onerror = () => reject(reader.error)
+      reader.readAsText(downloads[0])
+    })
+    return JSON.parse(text) as Array<{ version: number; title: string; content: string }>
+  }
+}
+
+describe('Text Pad recovery and backups', () => {
+  it.each(['switch back', 'undo close', 'edit', 'unmount'])('cancels delayed TXT import after %s', async (action) => {
+    const rendered = renderTextPad()
+    await waitForEditor()
+    const undoId = useTextPadStore.getState().activeTabId!
+    const alert = vi.spyOn(window, 'alert').mockImplementation(() => {})
+    let finish!: (text: string) => void
+    const text = new Promise<string>(resolve => { finish = resolve })
+    const input = rendered.container.querySelector('input[type=file]')!
+    fireEvent.change(input, { target: { files: [{ text: () => text }] } })
+    if (action === 'switch back') {
+      act(() => MockResizeObserver.trigger(2000))
+      fireEvent.click(screen.getByRole('button', { name: 'New tab' }))
+      fireEvent.click(screen.getByRole('button', { name: 'pad1' }))
+    } else if (action === 'undo close') {
+      fireEvent.click(screen.getByTestId(`close-tab-${undoId}`))
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    } else if (action === 'unmount') {
+      rendered.unmount()
+    } else {
+      act(() => liveEditor().dispatch({ changes: { from: 0, insert: 'new edit' } }))
+    }
+    await act(async () => { finish('late import'); await text })
+    expect(alert).toHaveBeenCalledWith(expect.stringContaining('Select the file again'))
+    if (action === 'unmount') {
+      renderTextPad()
+      await waitForEditor()
+    }
+    expect(liveEditor().state.doc.toString()).toBe(action === 'edit' ? 'new edit' : '')
+  })
+
+  it('preserves the failed last-close snapshot after its Undo timeout and a remount', async () => {
+    const rendered = renderTextPad()
+    await waitForEditor()
+    const closed = useTextPadStore.getState().activeTabId!
+    const ws = (await getWorkspace())!
+    const old = (await getAllDocuments())[0]
+    await repository.commitWorkspace({ workspace: ws, putDocuments: [{ ...old, id: 'other', title: 'old closed' }] })
+    act(() => liveEditor().dispatch({ changes: { from: 0, insert: 'unsaved revision' } }))
+    const fail = vi.spyOn(repository, 'commitWorkspace').mockRejectedValueOnce(new Error('close failed'))
+    vi.useFakeTimers()
+    fireEvent.click(screen.getByTestId(`close-tab-${closed}`))
+    await act(async () => { await vi.advanceTimersByTimeAsync(5001) })
+    vi.useRealTimers()
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
+    fail.mockRestore()
+    const replacement = useTextPadStore.getState().activeTabId!
+    expect(replacement).not.toBe(closed)
+    rendered.unmount()
+    renderTextPad()
+    await waitForEditor()
+    expect(useTextPadStore.getState().openTabIds).toEqual([replacement])
+    const banner = screen.getByTestId('memory-only-banner')
+    const readArchive = interceptArchiveDownload()
+    fireEvent.click(within(banner).getByRole('button', { name: 'Download all documents' }))
+    expect(await readArchive()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ version: 1, content: 'unsaved revision' }),
+      expect.objectContaining({ version: 1, title: 'old closed' }),
+    ]))
+    expect(pendingDocuments().get(closed)?.content).toBe('unsaved revision')
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    fireEvent.click(within(banner).getByRole('button', { name: 'Delete closed' }))
+    await waitFor(() => expect(useTextPadStore.getState().persistenceStatus).toBe('ready'))
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('1 closed'))
+    const saved = await getAllDocuments()
+    expect(saved.find(doc => doc.id === closed)?.content).toBe('unsaved revision')
+    expect(saved.some(doc => doc.id === 'other')).toBe(false)
+    expect((await getWorkspace())?.openTabIds).toEqual([replacement])
+    expect(pendingDocuments().size).toBe(0)
+  })
+
+  it('offers retry and explicitly partial export if enumeration fails', async () => {
+    renderTextPad()
+    await waitForEditor()
+    act(() => liveEditor().dispatch({ changes: { from: 0, insert: 'available' } }))
+    vi.spyOn(repository, 'getAllDocuments').mockRejectedValue(new Error('unavailable'))
+    const readArchive = interceptArchiveDownload()
+    fireEvent.click(screen.getByRole('button', { name: 'Download all documents' }))
+    await screen.findByText(/backup may be missing closed notes/)
+    expect(URL.createObjectURL).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Retry export' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Download available data' }))
+    expect(await readArchive()).toEqual([expect.objectContaining({ content: 'available' })])
+    expect(screen.getByText(/Downloaded a partial backup/)).toBeInTheDocument()
+  })
+
+  it('keeps the snapshot when a superseded write has no newer persisted version', async () => {
+    renderTextPad()
+    await waitForEditor()
+    vi.spyOn(repository, 'updateDocument').mockResolvedValue('superseded')
+    const id = useTextPadStore.getState().activeTabId!
+    act(() => liveEditor().dispatch({ changes: { from: 0, insert: 'keep this' } }))
+    const banner = await screen.findByTestId('save-error-banner')
+    expect(pendingDocuments().get(id)?.content).toBe('keep this')
+    expect((await getAllDocuments())[0].content).toBe('')
+    fireEvent.click(within(banner).getByRole('button', { name: 'Retry saving' }))
+    await waitFor(() => expect(screen.queryByTestId('save-error-banner')).toBeNull())
+    expect((await getAllDocuments())[0].content).toBe('keep this')
+  })
+
+  it('explains a newer database without altering its contents', async () => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open('txtkit-text-pad', 42)
+      req.onupgradeneeded = () => req.result.createObjectStore('future').put('sentinel', 'note')
+      req.onsuccess = () => resolve(req.result)
+      req.onerror = () => reject(req.error)
+    })
+    try {
+      renderTextPad()
+      await screen.findByText(/saved by a newer version/)
+      expect(screen.queryByTestId('text-pad-editor-host')).toBeNull()
+      expect(await new Promise(resolve => {
+        const req = db.transaction('future').objectStore('future').get('note')
+        req.onsuccess = () => resolve(req.result)
+      })).toBe('sentinel')
+    } finally {
+      db.close()
+    }
+  })
+})
+
+describe('Text Pad cleanup and version ordering', () => {
+  it('protects saved documents with a live Undo during quota cleanup', async () => {
+    renderTextPad()
+    await waitForEditor()
+    const closed = useTextPadStore.getState().activeTabId!
+    act(() => liveEditor().dispatch({ changes: { from: 0, insert: 'restore me' } }))
+    fireEvent.click(screen.getByTestId(`close-tab-${closed}`))
+    await waitFor(async () => {
+      expect((await getAllDocuments()).find(doc => doc.id === closed)?.content).toBe('restore me')
+    })
+    const original = (await getAllDocuments()).find(doc => doc.id === closed)!
+    await repository.commitWorkspace({
+      workspace: (await getWorkspace())!, putDocuments: [{ ...original, id: 'expired', title: 'expired' }],
+    })
+    vi.spyOn(repository, 'updateDocument').mockRejectedValueOnce(new DOMException('', 'QuotaExceededError'))
+    act(() => liveEditor().dispatch({ changes: { from: 0, insert: 'new' } }))
+    const banner = await screen.findByTestId('quota-banner')
+    expect(within(banner).getByRole('button', { name: 'Retry saving' })).toBeInTheDocument()
+    expect(within(banner).getByRole('button', { name: 'Download all documents' })).toBeInTheDocument()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    fireEvent.click(within(banner).getByRole('button', { name: 'Delete closed' }))
+    await waitFor(() => expect(screen.queryByTestId('quota-banner')).toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(liveEditor().state.doc.toString()).toBe('restore me')
+    expect((await getAllDocuments()).map(doc => doc.id)).toContain(closed)
+    expect((await getAllDocuments()).map(doc => doc.id)).not.toContain('expired')
+  })
+
+  it.each([
+    ['higher persisted revision', 1, 0, 'on disk'],
+    ['higher persisted timestamp', 0, 50000, 'on disk'],
+    ['same version', 0, 0, 'memory'],
+  ] as const)('selects the backup copy for %s', async (_, revision, increment, expected) => {
+    localStorage.setItem('txtkit-editor-doc', 'memory')
+    renderTextPad()
+    await waitForEditor()
+    const doc = (await getAllDocuments())[0]
+    await updateDocument(doc.id, { ...doc, content: 'on disk', contentRevision: revision, updatedAt: doc.updatedAt + increment })
+    const readArchive = interceptArchiveDownload()
+    fireEvent.click(screen.getByRole('button', { name: 'Download all documents' }))
+    expect(await readArchive()).toEqual([expect.objectContaining({ version: 1, content: expected })])
+  })
+})
+
+
+describe('Text Pad remount without database read access', () => {
+  it.each(['UnknownError', 'VersionError'])('retains open notes and their order after a document write fails and reads reject with %s', async (errorName) => {
+    const rendered = renderTextPad()
+    await waitForEditor()
+    const first = useTextPadStore.getState().activeTabId!
+    act(() => liveEditor().dispatch({ changes: { from: 0, insert: 'already saved' } }))
+    await waitFor(async () => expect((await getAllDocuments())[0].content).toBe('already saved'))
+    fireEvent.click(screen.getByRole('button', { name: 'New tab' }))
+    const second = useTextPadStore.getState().activeTabId!
+    await waitFor(async () => expect((await getWorkspace())?.openTabIds).toEqual([first, second]))
+    const update = repository.updateDocument
+    const failWrites = vi.spyOn(repository, 'updateDocument').mockImplementation((id, doc) =>
+      id === second ? Promise.reject(new Error('write failed')) : update(id, doc))
+    act(() => liveEditor().dispatch({ changes: { from: 0, insert: 'pending edit' } }))
+    await screen.findByTestId('save-error-banner')
+    expect(pendingWorkspace()).toBeUndefined()
+    rendered.unmount()
+    await waitFor(() => expect(pendingDocuments().has(first)).toBe(false))
+    expect(pendingOpenSession()?.workspace.openTabIds).toEqual([first, second])
+    const failReads = vi.spyOn(repository, 'getWorkspace').mockRejectedValue(new DOMException('', errorName))
+    renderTextPad()
+    await waitForEditor()
+    expect(useTextPadStore.getState().openTabIds).toEqual([first, second])
+    expect(useTextPadStore.getState().activeTabId).toBe(second)
+    expect(liveEditor().state.doc.toString()).toBe('pending edit')
+    if (errorName === 'VersionError') expect(screen.getByText(/saved by a newer version/)).toBeInTheDocument()
+    const banner = screen.getByTestId('memory-only-banner')
+    failReads.mockRestore()
+    failWrites.mockRestore()
+    fireEvent.click(within(banner).getByRole('button', { name: 'Retry saving' }))
+    await waitFor(() => expect(useTextPadStore.getState().persistenceStatus).toBe('ready'))
+    expect(pendingOpenSession()).toBeUndefined()
+    expect((await getAllDocuments()).map(doc => doc.content).sort()).toEqual(['already saved', 'pending edit'])
   })
 })

@@ -16,11 +16,18 @@ import {
   setRecoverySnapshotFn,
   clearRecoverySnapshotFn,
 } from '../text-pad/useWorkspaceQueue'
-import { getWorkspace, getAllDocuments } from '../../db/textPadRepository'
+import {
+  deleteDocuments, getAllDocuments, getDocumentVersion, getWorkspace,
+} from '../../db/textPadRepository'
+import {
+  compareDocumentVersions, confirmDocument, newestDocuments, pendingDocuments,
+  pendingOpenSession, pendingWorkspace, rememberDocument, rememberOpenSession, rememberWorkspace,
+} from '../text-pad/pendingPadWrites'
+import { createPadArchive } from '../text-pad/padArchive'
 import { TextPadTabBar } from '../../components/TextPadTabBar'
 import { createEditorState, wrappingCompartment, whitespaceCompartment } from '../text-pad/editorStateFactory'
 import { getTextPadStats } from './textPadStats'
-import { downloadTextFile, downloadJsonBackup } from './textPadFile'
+import { downloadTextFile, downloadPadFile } from './textPadFile'
 import { copyToClipboard } from '../../utils/clipboard'
 
 import {
@@ -52,6 +59,7 @@ import type {
 // =====================================================================
 
 interface BootstrapResult {
+  newerDatabase?: boolean
   activeTabId: string | null
   openTabIds: string[]
   tabsById: Record<string, { title: string }>
@@ -374,28 +382,48 @@ export function reconcileClosedDocumentCommit(
 }
 
 // Each mount calls this. Normalization is cached; the fresh DB read is not.
+function isVersionError(error: unknown): boolean {
+  return !!error && typeof error === 'object' && 'name' in error && error.name === 'VersionError'
+}
+
 async function loadBootstrapResult(): Promise<BootstrapResult> {
-  const normalization = await ensureNormalized()
-
-  if (
-    normalization.memoryOnlyWorkspace &&
-    normalization.memoryOnlyDocuments
-  ) {
-    return buildBootstrapResult({
-      workspace: normalization.memoryOnlyWorkspace,
-      documents: normalization.memoryOnlyDocuments,
-      persistenceStatus: 'memory-only',
-    })
+  const session = pendingOpenSession()
+  const memoryWorkspace = pendingWorkspace()
+  const memory = [...pendingDocuments().values()]
+  let persisted: DocumentRecord[]
+  let workspace: WorkspaceRecord | undefined
+  let status: PersistenceStatus
+  let newerDatabase = false
+  try {
+    // An unconfirmed workspace supersedes normalization of the older DB layout.
+    const normalized = memoryWorkspace ? undefined : await ensureNormalized()
+    workspace = memoryWorkspace ?? normalized?.memoryOnlyWorkspace ?? await getWorkspace()
+    persisted = normalized?.memoryOnlyDocuments ?? await getAllDocuments()
+    status = normalized?.persistenceStatus ?? 'ready'
+  } catch (error) {
+    workspace = memoryWorkspace ?? session?.workspace
+    if (!workspace) throw error
+    const available = newestDocuments(session?.documents ?? [], memory, pendingDocuments().values())
+    if (!available.some(doc => workspace!.openTabIds.includes(doc.id))) throw error
+    persisted = session?.documents ?? []
+    newerDatabase = isVersionError(error)
+    status = 'memory-only'
   }
-
-  const workspace = await getWorkspace()
-  const documents = await getAllDocuments()
-
-  return buildBootstrapResult({
-    workspace,
-    documents,
-    persistenceStatus: normalization.persistenceStatus,
-  })
+  const previous = useTextPadStore.getState()
+  if (status !== 'memory-only' && (memoryWorkspace || memory.length) && previous.persistenceStatus !== 'ready' &&
+      previous.persistenceStatus !== 'initializing') status = previous.persistenceStatus
+  const docs = newestDocuments(persisted, memory, pendingDocuments().values())
+  const result = buildBootstrapResult({ workspace, documents: docs, persistenceStatus: status })
+  result.newerDatabase = newerDatabase
+  for (const [id] of pendingDocuments()) {
+    result.saveErrorById[id] = previous.saveErrorById[id] ?? false
+    if (result.openTabIds.includes(id)) {
+      result.savedRevisionById[id] = status === 'memory-only'
+        ? previous.savedRevisionById[id] ?? -1
+        : persisted.find((doc) => doc.id === id)?.contentRevision ?? -1
+    }
+  }
+  return result
 }
 
 const inputClass =
@@ -430,6 +458,10 @@ export function TextPadView() {
   const currentRAF = useRef<number | null>(null)
   const savingRef = useRef(new Map<string, boolean>())
   const debounceTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  const [newerDatabase, setNewerDatabase] = useState(false)
+  const [exportFailure, setExportFailure] = useState<string | null>(null)
+  const [incompleteExport, setIncompleteExport] = useState(false)
+  const tabActivation = useRef(0)
   const [initialized, setInitialized] = useState(false)
   const [undoList, setUndoList] = useState<Array<{ id: string; title: string }>>([])
   const [undoOverflowOpen, setUndoOverflowOpen] = useState(false)
@@ -535,7 +567,7 @@ export function TextPadView() {
         selection: viewRef.current.state.selection.toJSON(),
         scrollTop: viewRef.current.scrollDOM.scrollTop,
         contentRevision,
-        updatedAt: nextDocumentUpdatedAt(tabId),
+        updatedAt: lastUpdatedAtById.current.get(tabId) ?? 0,
       }
     }
     const rt = runtimeTabs.current.get(tabId)
@@ -545,7 +577,7 @@ export function TextPadView() {
       selection: rt.editorState.selection.toJSON(),
       scrollTop: rt.scrollTop,
       contentRevision,
-      updatedAt: nextDocumentUpdatedAt(tabId),
+      updatedAt: lastUpdatedAtById.current.get(tabId) ?? 0,
     }
   }
 
@@ -579,8 +611,7 @@ export function TextPadView() {
     return next
   }
 
-  function canSave(tabId: string): boolean {
-    void tabId
+  function canSave(): boolean {
     const s = store.getState()
     if (s.persistenceStatus === 'quota-error') return false
     if (s.persistenceStatus === 'memory-only') return false
@@ -588,34 +619,34 @@ export function TextPadView() {
     return true
   }
 
+  function captureRecord(id: string): DocumentRecord | null {
+    const patch = captureDocument(id)
+    const rt = runtimeTabs.current.get(id)
+    if (!rt || !patch) return null
+    return { ...patch, id, title: store.getState().tabsById[id]?.title ?? rt.title, createdAt: rt.createdAt }
+  }
+
   function buildRecoverySnapshots(): DocumentRecord[] {
-    const s = store.getState()
-    const result: DocumentRecord[] = []
-    for (const id of s.openTabIds) {
-      const patch = captureDocument(id)
-      const rt = runtimeTabs.current.get(id)
-      if (!patch || !rt) continue
-      result.push({
-        id,
-        title: s.tabsById[id]?.title ?? id,
-        content: patch.content,
-        selection: patch.selection,
-        scrollTop: patch.scrollTop,
-        contentRevision: patch.contentRevision,
-        createdAt: rt.createdAt,
-        updatedAt: patch.updatedAt,
-      })
+    return store.getState().openTabIds.flatMap((id) => captureRecord(id) ?? [])
+  }
+
+  function captureWorkspace(): WorkspaceRecord {
+    const { activeTabId, openTabIds, nextUntitledNumber } = store.getState()
+    return {
+      key: 'current', activeTabId, openTabIds: [...openTabIds], nextUntitledNumber,
+      migrations: { legacyLocalStorageMigrationCompleted: true },
     }
-    return result
   }
 
   // Unified helper: switch active tab, restore scroll, focus editor.
   // Used by handleSelectTab, handleCloseTab, handleUndoClose.
   function activateRuntimeTab(id: string, runtime: RuntimeTabState): void {
+    tabActivation.current++
     activeTabIdRef.current = id
     const view = viewRef.current
     if (!view) return
     view.setState(runtime.editorState)
+    setDocumentVersion((v) => v + 1)
     if (currentRAF.current !== null) cancelAnimationFrame(currentRAF.current)
     const restoreId = id
     const restoreScroll = runtime.scrollTop
@@ -640,6 +671,7 @@ export function TextPadView() {
       try {
         const result = await loadBootstrapResult()
         if (cancelled) return
+        setNewerDatabase(result.newerDatabase ?? false)
 
         // Clear any leftover runtime state from a prior instance before
         // hydrating, so re-mounts (Strict Mode or route changes) cannot
@@ -647,9 +679,7 @@ export function TextPadView() {
         runtimeTabs.current.clear()
         lastUpdatedAtById.current.clear()
 
-        // Apply result to THIS instance's store + refs.
-        // workspaceSaveError is reset here — a stale error from a
-        // previous instance must not survive remount.
+        // Keep failed workspace mutations visible until the requested layout is saved.
         store.setState({
           activeTabId: result.activeTabId,
           openTabIds: result.openTabIds,
@@ -659,7 +689,7 @@ export function TextPadView() {
           currentRevisionById: result.currentRevisionById,
           savedRevisionById: result.savedRevisionById,
           saveErrorById: result.saveErrorById,
-          workspaceSaveError: false,
+          workspaceSaveError: !!pendingWorkspace() && store.getState().workspaceSaveError,
         })
 
         // Seed updatedAt clock from persisted records and build runtime tabs
@@ -681,8 +711,12 @@ export function TextPadView() {
 
         setRecoverySnapshotFn(() => buildRecoverySnapshots())
         setInitialized(true)
-      } catch {
+      } catch (error) {
         if (cancelled) return
+        if (isVersionError(error)) {
+          setNewerDatabase(true)
+          return
+        }
         // Memory-only fallback — clear any stale runtime state first.
         runtimeTabs.current.clear()
         lastUpdatedAtById.current.clear()
@@ -712,6 +746,8 @@ export function TextPadView() {
           saveErrorById: { [docId]: false },
           workspaceSaveError: false,
         })
+        rememberWorkspace(captureWorkspace())
+        for (const doc of buildRecoverySnapshots()) rememberDocument(doc)
         setRecoverySnapshotFn(() => buildRecoverySnapshots())
         setInitialized(true)
       }
@@ -721,89 +757,79 @@ export function TextPadView() {
     return () => { cancelled = true }
   }, [])
 
-  // ---- Save loop ----
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- helpers read fresh state via refs/store.getState()
-  const startSaveLoop = useCallback(
-    (tabId: string) => {
-      if (savingRef.current.get(tabId)) return
-      if (!canSave(tabId)) return
+  async function saveRecord(doc: DocumentRecord): Promise<void> {
+    rememberDocument(doc)
+    const result = await enqueueDocumentWrite(doc.id, doc)
+    let persisted: Pick<DocumentRecord, 'contentRevision' | 'updatedAt'> = doc
+    if (result === 'superseded') {
+      const version = await getDocumentVersion(doc.id)
+      if (!version || compareDocumentVersions(version, doc) < 0) {
+        throw new Error('Document write was superseded before a newer snapshot was saved')
+      }
+      persisted = version
+    }
+    confirmDocument(doc.id, persisted)
+    const state = store.getState()
+    if (state.openTabIds.includes(doc.id)) state.markSaved(doc.id, doc.contentRevision)
+    if (!pendingDocuments().has(doc.id)) state.setSaveError(doc.id, false)
+    state.checkSaveErrorRecovery()
+  }
 
-      savingRef.current.set(tabId, true)
-      const gen = getSessionGeneration(tabId)
-      const run = async () => {
-        try {
-          while (isDirty(tabId) && canSave(tabId)) {
-            const revision = getLoggerRevision(tabId)
-            const patch = captureDocument(tabId)
-            if (!patch) break
+  function reportSaveFailure(id: string, error: unknown): void {
+    if (!pendingDocuments().has(id)) return
+    const state = store.getState()
+    state.setSaveError(id, true)
+    if (state.persistenceStatus === 'memory-only' || state.persistenceStatus === 'quota-error') return
+    state.setPersistenceStatus(
+      error instanceof DOMException && error.name === 'QuotaExceededError' ? 'quota-error' : 'save-error',
+    )
+  }
 
-            try {
-              const result = await enqueueDocumentWrite(tabId, patch)
-              if (result === 'superseded') continue
-              if (getSessionGeneration(tabId) !== gen) break
-              store.getState().markSaved(tabId, revision)
-              store.getState().setSaveError(tabId, false)
-              store.getState().checkSaveErrorRecovery()
-            } catch (err: unknown) {
-              if (err instanceof DOMException && err.name === 'QuotaExceededError') {
-                store.getState().setPersistenceStatus('quota-error')
-                store.getState().setSaveError(tabId, true)
-                break
-              }
+  function flushRecord(id: string, doc = captureRecord(id)): void {
+    if (!doc) return
+    const { persistenceStatus } = store.getState()
+    if (persistenceStatus === 'memory-only' || persistenceStatus === 'quota-error') {
+      rememberDocument(doc)
+      return
+    }
+    void saveRecord(doc).catch((error: unknown) => reportSaveFailure(id, error))
+  }
 
-              store.getState().setSaveError(tabId, true)
-
-              // memory-only and quota-error are sticky. A document-level
-              // write failure must not downgrade them to retryable save-error.
-              const s = store.getState()
-              if (
-                s.persistenceStatus === 'memory-only' ||
-                s.persistenceStatus === 'quota-error'
-              ) {
-                break
-              }
-
-              store.getState().setPersistenceStatus('save-error')
-
-              await new Promise((r) => setTimeout(r, 2000))
-
-              // After the delay the app may have transitioned to a sticky
-              // state (e.g. creation commit for a new tab failed).
-              if (!canSave(tabId)) break
-
-              const latestRev = getLoggerRevision(tabId)
-              if (latestRev !== revision) continue
-
-              try {
-                const retryResult = await enqueueDocumentWrite(tabId, patch)
-                if (retryResult === 'superseded') continue
-                if (getSessionGeneration(tabId) !== gen) break
-                store.getState().markSaved(tabId, revision)
-                store.getState().setSaveError(tabId, false)
-                store.getState().checkSaveErrorRecovery()
-              } catch {
-                store.getState().setSaveError(tabId, true)
-                break
-              }
-            }
-          }
-        } finally {
-          savingRef.current.set(tabId, false)
-          // If the session generation changed (close → undo → edit),
-          // a new save loop may need to start for the same tab id.
-          if (
-            getSessionGeneration(tabId) !== gen &&
-            isDirty(tabId) &&
-            canSave(tabId)
-          ) {
-            startSaveLoop(tabId)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- helpers read the current editor and store through refs.
+  const startSaveLoop = useCallback((id: string) => {
+    if (!canSave()) {
+      if (!disposed.current) {
+        const doc = captureRecord(id)
+        if (doc) rememberDocument(doc)
+      }
+      return
+    }
+    if (savingRef.current.get(id)) return
+    const generation = getSessionGeneration(id)
+    savingRef.current.set(id, true)
+    const run = async () => {
+      try {
+        let retry = true
+        while (getSessionGeneration(id) === generation && isDirty(id) && canSave()) {
+          const doc = captureRecord(id)
+          if (!doc) break
+          try {
+            await saveRecord(doc)
+            retry = true
+          } catch (error) {
+            reportSaveFailure(id, error)
+            if (!retry || !canSave()) break
+            retry = false
+            await new Promise((resolve) => setTimeout(resolve, 2000))
           }
         }
+      } finally {
+        savingRef.current.delete(id)
+        if (getSessionGeneration(id) !== generation && isDirty(id) && canSave()) startSaveLoop(id)
       }
-      void run()
-    },
-    [],
-  )
+    }
+    void run()
+  }, [])
 
   // ---- CodeMirror setup ----
   // Created once after bootstrap. Tab switching uses view.setState(), never recreates the view.
@@ -839,6 +865,8 @@ export function TextPadView() {
           createdAt: existing?.createdAt ?? Date.now(),
         })
 
+        if (trs.some((tr) => tr.docChanged || tr.selection)) nextDocumentUpdatedAt(tabId)
+
         // Revision bump + debounce only on content change
         if (trs.some((tr) => tr.docChanged)) {
           store.getState().bumpRevision(tabId)
@@ -858,6 +886,7 @@ export function TextPadView() {
       },
     })
     viewRef.current = view
+    setDocumentVersion((v) => v + 1)
 
     return () => {
       // Capture final runtime state before destroy
@@ -958,16 +987,7 @@ export function TextPadView() {
     // Persist selection/scroll for the tab we're leaving.
     // If content is dirty, the save loop handles everything (including metadata).
     // If content is clean, do a metadata-only write.
-    if (currentId && canSave(currentId)) {
-      if (isDirty(currentId)) {
-        startSaveLoop(currentId)
-      } else {
-        const metaPatch = captureDocument(currentId)
-        if (metaPatch) {
-          void enqueueDocumentWrite(currentId, metaPatch).catch(() => {})
-        }
-      }
-    }
+    if (currentId) flushRecord(currentId)
   }, [])
 
   // ---- Persistence recovery (shared between quota and memory-only) ----
@@ -975,6 +995,7 @@ export function TextPadView() {
   const handleRetryPersistence = useCallback(async () => {
     try {
       await resumeWorkspacePersistence()
+      setNewerDatabase(false)
       invalidateTextPadNormalization()
       const state = store.getState()
       if (state.persistenceStatus === 'memory-only') {
@@ -983,7 +1004,7 @@ export function TextPadView() {
         state.clearStickyPersistenceError('quota-error')
       }
       for (const id of store.getState().openTabIds) {
-        if (isDirty(id) && canSave(id)) startSaveLoop(id)
+        if (isDirty(id) && canSave()) startSaveLoop(id)
       }
     } catch {
       // Documents remain available for export when recovery fails.
@@ -1009,7 +1030,7 @@ export function TextPadView() {
     store.getState().addTab(id, title, nextNum + 1)
 
     if (viewRef.current) {
-      viewRef.current.setState(state)
+      activateRuntimeTab(id, runtimeTabs.current.get(id)!)
       viewRef.current.focus()
     }
 
@@ -1037,7 +1058,7 @@ export function TextPadView() {
 
     const isLastTab = s.openTabIds.length === 1
     const rt = captureRuntimeTabState(id)
-    const patch = captureDocument(id)
+    const closedDocRecord = captureRecord(id)
     const index = s.openTabIds.indexOf(id)
     const currentRev = getLoggerRevision(id)
     const savedRev = getSavedRevision(id)
@@ -1047,14 +1068,6 @@ export function TextPadView() {
       clearTimeout(debounceTimer)
       debounceTimers.current.delete(id)
     }
-
-    const closedDocRecord: DocumentRecord | null = patch
-      ? {
-          id, title, content: patch.content, selection: patch.selection,
-          scrollTop: patch.scrollTop, contentRevision: currentRev,
-          createdAt: rt?.createdAt ?? Date.now(), updatedAt: patch.updatedAt,
-        }
-      : null
 
     let newId: string | null = null
     let newState: RuntimeTabState | null = null
@@ -1145,6 +1158,13 @@ export function TextPadView() {
     })
   }, [])
 
+  function flushOpenSession(): void {
+    const open = buildRecoverySnapshots()
+    if (!open.length) return
+    rememberOpenSession(captureWorkspace(), open)
+    for (const doc of open) flushRecord(doc.id, doc)
+  }
+
   // ---- Lifecycle: visibility change ----
   useEffect(() => {
     const handler = () => {
@@ -1154,10 +1174,7 @@ export function TextPadView() {
         const runtime = captureRuntimeTabState(currentId)
         if (runtime) runtimeTabs.current.set(currentId, runtime)
       }
-      for (const id of store.getState().openTabIds) {
-        const patch = captureDocument(id)
-        if (patch) void enqueueDocumentWrite(id, patch).catch(() => {})
-      }
+      flushOpenSession()
     }
     document.addEventListener('visibilitychange', handler)
     return () => document.removeEventListener('visibilitychange', handler)
@@ -1176,10 +1193,7 @@ export function TextPadView() {
       const runtime = captureRuntimeTabState(currentId)
       if (runtime) runtimeTabs.current.set(currentId, runtime)
     }
-    for (const id of store.getState().openTabIds) {
-      const patch = captureDocument(id)
-      if (patch) void enqueueDocumentWrite(id, patch).catch(() => {})
-    }
+    flushOpenSession()
     clearRecoverySnapshotFn()
   }, [])
 
@@ -1371,30 +1385,86 @@ export function TextPadView() {
     fileInputRef.current?.click()
   }
 
-  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0]
+    event.currentTarget.value = ''
     const view = viewRef.current
-    if (!view) {
-      e.target.value = ''
-      return
+    const id = activeTabIdRef.current
+    if (!file || !view || !id) return
+    if (view.state.doc.length && !window.confirm(t('textPad.confirmImportReplace'))) return
+    const activation = tabActivation.current
+    const revision = getLoggerRevision(id)
+    try {
+      const text = await file.text()
+      if (viewRef.current !== view || activeTabIdRef.current !== id ||
+          tabActivation.current !== activation || getLoggerRevision(id) !== revision) {
+        window.alert(t('textPad.file.importCancelled'))
+        return
+      }
+      replaceWholeDoc(text, 'input.textPad.importTxt')
+    } catch {
+      window.alert(t('textPad.file.importReadError'))
     }
-    if ((view.state.doc.toString() ?? '').length > 0) {
-      if (!window.confirm(t('textPad.confirmImportReplace'))) {
-        e.target.value = ''
+  }
+
+  async function handleExportAll(partial = false): Promise<void> {
+    setExportFailure(null)
+    setIncompleteExport(false)
+    let saved: DocumentRecord[] = []
+    let enumerationFailed = false
+    try {
+      saved = await getAllDocuments()
+    } catch {
+      enumerationFailed = true
+      if (!partial) {
+        setExportFailure(t('textPad.file.unknownClosed'))
         return
       }
     }
-    const text = await file.text()
-    view.dispatch({
-      changes: { from: 0, to: view.state.doc.length, insert: text },
-      userEvent: 'input.textPad.importTxt',
+    const closed = [...undoEntries.current.values()].map((entry) => {
+      const { editorState, scrollTop, title, createdAt } = entry.runtimeState
+      return {
+        id: entry.id, title, createdAt, scrollTop,
+        content: editorState.doc.toString(), selection: editorState.selection.toJSON(),
+        contentRevision: entry.currentRevision, updatedAt: lastUpdatedAtById.current.get(entry.id) ?? createdAt,
+      }
     })
-    e.target.value = ''
+    const docs = newestDocuments(saved, closed, pendingDocuments().values(), buildRecoverySnapshots())
+    try {
+      const blob = createPadArchive(docs)
+      downloadPadFile(blob, 'txtkit-backup.json')
+      setIncompleteExport(enumerationFailed)
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : ''
+      setExportFailure(t('textPad.file.unreadable', { detail }))
+    }
+  }
+
+  async function cleanClosedDocuments(): Promise<void> {
+    try {
+      const records = await getAllDocuments()
+      const open = store.getState().openTabIds
+      const candidates = records.filter(({ id }) =>
+        !open.includes(id) && !undoEntries.current.has(id) && !pendingDocuments().has(id))
+      if (!candidates.length) {
+        window.alert(t('textPad.quota.noClosed'))
+        return
+      }
+      if (!window.confirm(t('textPad.quota.deleteConfirm', { count: String(candidates.length) }))) return
+      await deleteDocuments(candidates.map(({ id }) => id))
+      await handleRetryPersistence()
+    } catch {
+      window.alert(t('textPad.persistence.cleanupFailed'))
+    }
+  }
+
+  if (newerDatabase && !initialized) {
+    return <div role="alert" className="p-3 text-sm text-text">{t('textPad.persistence.newerDatabase')}</div>
   }
 
   return (
     <div ref={rootRef} className="w-full max-w-none flex-1 flex flex-col min-h-0 gap-2" data-testid="text-pad-view">
+      {newerDatabase && <p role="alert" className="text-sm text-text">{t('textPad.persistence.newerDatabase')}</p>}
       <ToolHeader icon="✎" title={t('textPad.title')}>
         {pendingSourceInput !== null && (
           <button onClick={handleImportSourceInput} className={buttonActive}>
@@ -1439,6 +1509,9 @@ export function TextPadView() {
           className={buttonIdle}
         >
           {t('textPad.toolbar.downloadTxt')}
+        </button>
+        <button onClick={() => void handleExportAll()} className={buttonIdle}>
+          {t('textPad.quota.exportAll')}
         </button>
         <button
           onClick={() => setEditorPrefs({ lineWrapping: !editorPrefs.lineWrapping })}
@@ -1515,48 +1588,33 @@ export function TextPadView() {
         </aside>
       )}
 
-      {(persistenceStatus === 'memory-only' || persistenceStatus === 'quota-error') && (
+      {(persistenceStatus === 'memory-only' || persistenceStatus === 'quota-error' || persistenceStatus === 'save-error') && (
         <div
           role="alert"
-          data-testid={persistenceStatus === 'quota-error' ? 'quota-banner' : 'memory-only-banner'}
+          data-testid={persistenceStatus === 'quota-error' ? 'quota-banner' : `${persistenceStatus}-banner`}
           className="flex flex-wrap items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200"
         >
-          <span className="flex-1">{persistenceStatus === 'quota-error' ? t('textPad.quota.title') : t('textPad.memoryOnly')}</span>
+          <span className="flex-1">{t(persistenceStatus === 'quota-error'
+            ? 'textPad.quota.title'
+            : persistenceStatus === 'memory-only' ? 'textPad.persistence.memoryOnly' : 'textPad.persistence.saveError')}</span>
           <button onClick={() => {
             const title = activeTabId ? tabsById[activeTabId]?.title ?? 'pad' : 'pad'
             downloadTextFile(viewRef.current?.state.doc.toString() ?? '', `${title}.txt`)
           }} className={buttonIdle}>{t('textPad.quota.exportCurrent')}</button>
-          <button onClick={async () => {
-            const documents = new Map<string, { title: string; content: string }>()
-            try {
-              for (const doc of await getAllDocuments()) documents.set(doc.id, { title: doc.title, content: doc.content })
-            } catch {
-              // IndexedDB may be unavailable while persistence is memory-only.
-            }
-            for (const id of store.getState().openTabIds) {
-              const patch = captureDocument(id)
-              if (patch) documents.set(id, { title: store.getState().tabsById[id]?.title ?? id, content: patch.content })
-            }
-            for (const [id, entry] of undoEntries.current) documents.set(id, { title: entry.runtimeState.title, content: entry.runtimeState.editorState.doc.toString() })
-            downloadJsonBackup([...documents.values()])
-          }} className={buttonIdle}>{t('textPad.quota.exportAll')}</button>
-          {persistenceStatus === 'memory-only' ? (
-            <button onClick={() => { void handleRetryPersistence() }} className={buttonIdle}>{t('textPad.persistence.retry')}</button>
-          ) : (
-            <button onClick={async () => {
-              const { deleteDocuments } = await import('../../db/textPadRepository')
-              const closedIds = (await getAllDocuments()).map((doc) => doc.id).filter((id) => !store.getState().openTabIds.includes(id) && !undoEntries.current.has(id))
-              if (closedIds.length === 0) {
-                alert(t('textPad.quota.noClosed'))
-                return
-              }
-              if (!window.confirm(t('textPad.quota.deleteConfirm', { count: String(closedIds.length) }))) return
-              await deleteDocuments(closedIds)
-              await handleRetryPersistence()
-            }} className={buttonIdle}>{t('textPad.quota.deleteClosed')}</button>
-          )}
+          <button onClick={() => void handleExportAll()} className={buttonIdle}>{t('textPad.quota.exportAll')}</button>
+          <button onClick={() => void handleRetryPersistence()} className={buttonIdle}>{t('textPad.persistence.retry')}</button>
+          <button onClick={() => void cleanClosedDocuments()} className={buttonIdle}>{t('textPad.quota.deleteClosed')}</button>
         </div>
       )}
+
+      {exportFailure !== null && (
+        <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-amber-200">
+          <span>{exportFailure}</span>
+          <button onClick={() => void handleExportAll()} className={buttonIdle}>{t('textPad.file.retryExport')}</button>
+          <button onClick={() => void handleExportAll(true)} className={buttonIdle}>{t('textPad.file.exportAvailable')}</button>
+        </div>
+      )}
+      {incompleteExport && <p role="status" className="text-xs text-amber-200">{t('textPad.file.partialExport')}</p>}
 
       <input
         ref={fileInputRef}

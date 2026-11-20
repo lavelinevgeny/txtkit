@@ -1,4 +1,8 @@
 import { commitWorkspace } from '../../db/textPadRepository'
+import {
+  confirmDocument, confirmWorkspace, newestDocuments, pendingDocuments,
+  rememberDocument, rememberWorkspace, resetPendingWritesForTests,
+} from './pendingPadWrites'
 import { useTextPadStore } from './useTextPadStore'
 import type { DocumentRecord, WorkspaceMutation, WorkspaceRecord } from './types'
 
@@ -35,7 +39,7 @@ export async function resumeWorkspacePersistence(): Promise<void> {
     throw new Error('Recovery snapshot is unavailable')
   }
 
-  const docs = recoverySnapshotFn()
+  const docs = newestDocuments(pendingDocuments().values(), recoverySnapshotFn())
   if (docs.length === 0) {
     throw new Error('Recovery snapshot is empty')
   }
@@ -66,6 +70,7 @@ export async function resumeWorkspacePersistence(): Promise<void> {
 export function resetWorkspaceQueueForTests(): void {
   workspacePersistenceDisabled = false
   wsQueue = Promise.resolve()
+  resetPendingWritesForTests()
   docCreations.clear()
   recoverySnapshotFn = null
 }
@@ -84,6 +89,9 @@ export function enqueueWorkspaceMutation(
       )
     }
   }
+
+  rememberWorkspace(mutation.workspace)
+  for (const doc of mutation.putDocuments ?? []) rememberDocument(doc)
 
   if (mutation.createdDocumentIds && mutation.createdDocumentIds.length > 0) {
     for (const docId of mutation.createdDocumentIds) {
@@ -120,6 +128,15 @@ export function enqueueWorkspaceMutation(
       putDocuments: mutation.putDocuments,
     })
 
+    confirmWorkspace(mutation.workspace)
+    const state = useTextPadStore.getState()
+    for (const doc of mutation.putDocuments ?? []) {
+      // A committed transaction either installed the record, or skipped it
+      // because it observed an equal or newer persisted version.
+      confirmDocument(doc.id, doc)
+      if (!pendingDocuments().has(doc.id)) state.setSaveError(doc.id, false)
+      if (state.openTabIds.includes(doc.id)) state.markSaved(doc.id, doc.contentRevision)
+    }
     if (mutation.createdDocumentIds) {
       for (const docId of mutation.createdDocumentIds) {
         const creation = docCreations.get(docId)
@@ -144,10 +161,15 @@ export function enqueueWorkspaceMutation(
       }
     }
 
-    if (mutation.createdDocumentIds && mutation.createdDocumentIds.length > 0) {
+    for (const doc of mutation.putDocuments ?? []) {
+      if (pendingDocuments().has(doc.id)) useTextPadStore.getState().setSaveError(doc.id, true)
+    }
+    if (workspacePersistenceDisabled || createdIds.length > 0) {
       workspacePersistenceDisabled = true
       useTextPadStore.getState().setPersistenceStatus('memory-only')
-    } else {
+    } else if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+      useTextPadStore.getState().setPersistenceStatus('quota-error')
+    } else if (useTextPadStore.getState().persistenceStatus !== 'quota-error') {
       useTextPadStore.getState().setPersistenceStatus('save-error')
     }
     useTextPadStore.getState().setWorkspaceSaveError(true)

@@ -321,5 +321,16 @@
   "textPad.quota.sizeLabel": "Approximate size: {size}",
   "textPad.quota.noClosed": "No closed documents to delete.",
   "textPad.memoryOnly": "Autosave unavailable. Export your documents manually.",
+  "textPad.persistence.memoryOnly": "Autosave is unavailable. Reloading this page will discard unsaved documents.",
+  "textPad.persistence.saveError": "Some changes could not be saved. Download a backup or retry saving.",
+  "textPad.persistence.cleanupFailed": "Closed documents could not be cleaned up. Try again.",
+  "textPad.persistence.newerDatabase": "These notes were saved by a newer version of Text Pad. Open the latest version to access them.",
+  "textPad.file.importCancelled": "The note changed while the file was being read. Select the file again to import it.",
+  "textPad.file.importReadError": "The text file could not be read. Select the file again.",
+  "textPad.file.unknownClosed": "Saved documents could not be listed. The backup may be missing closed notes.",
+  "textPad.file.unreadable": "Some attachments could not be read. {detail}",
+  "textPad.file.retryExport": "Retry export",
+  "textPad.file.exportAvailable": "Download available data",
+  "textPad.file.partialExport": "Downloaded a partial backup. Some notes or attachment data could not be included.",
   "textPad.persistence.retry": "Retry saving"
 }
