@@ -1,10 +1,11 @@
-import { isolateHistory, redo, undo } from '@codemirror/commands'
-import { EditorView, ViewPlugin } from '@codemirror/view'
+import { historyKeymap, isolateHistory, redo, undo } from '@codemirror/commands'
+import { EditorView, keymap, runScopeHandlers, ViewPlugin } from '@codemirror/view'
 import type { ViewUpdate } from '@codemirror/view'
-import { autoImageHeight, autoImageWidth, imageScaleStep, maxImageScale, scaledImageWidth } from './padImageSize'
+import { autoImageHeight, autoImageWidth, imageScaleStep, maxImageScale, previousImageScale, scaledImageWidth } from './padImageSize'
 import { imageText, padImageBindings, resizePadImage } from './padImageState'
 
 const triggerSelector = '.cm-pad-image-trigger'
+const controlsScope = 'pad-image-controls'
 
 function button(label: string) {
   const element = document.createElement('button')
@@ -30,6 +31,7 @@ export const imageControls = ViewPlugin.fromClass(class {
   readonly gutter: HTMLElement | null
   active: HTMLButtonElement | null = null
   available = 0
+  viewport: number[] = []
   // Keep a stationary pointer over the same action as the image grows or shrinks.
   pinned: { x: number; y: number } | null = null
 
@@ -47,12 +49,9 @@ export const imageControls = ViewPlugin.fromClass(class {
     view.dom.addEventListener('focusout', this.focusout)
     view.dom.ownerDocument.addEventListener('pointerdown', this.outside, true)
     view.dom.ownerDocument.addEventListener('scroll', this.scroll, true)
-    window.addEventListener('resize', this.resize)
+    window.addEventListener('resize', this.measure)
     if (typeof ResizeObserver !== 'undefined') {
-      this.observer = new ResizeObserver(entries => {
-        if (entries.some(entry => entry.target === view.scrollDOM || entry.target === this.gutter)) this.pinned = null
-        this.measure()
-      })
+      this.observer = new ResizeObserver(this.measure)
       this.observer.observe(view.scrollDOM)
       if (this.gutter) this.observer.observe(this.gutter)
     }
@@ -98,9 +97,16 @@ export const imageControls = ViewPlugin.fromClass(class {
       if (this.panel.style.left) {
         this.pinned = { x: parseFloat(this.panel.style.left), y: parseFloat(this.panel.style.top) }
       }
-      const next = target === this.reset ? 100 : scale + (target === this.plus ? imageScaleStep : -imageScaleStep)
+      let next = 100
+      if (target === this.plus) next = scale + imageScaleStep
+      if (target === this.minus) {
+        const image = this.active?.querySelector('img')
+        if (!image) return
+        next = previousImageScale(autoImageWidth(image), this.available, scale)
+      }
       this.view.dispatch({
-        effects: resizePadImage.of({ imageId: binding.imageId, scale: next }),
+        // Keep the viewport at its current line even when the last line grows.
+        effects: [resizePadImage.of({ imageId: binding.imageId, scale: next }), this.view.scrollSnapshot()],
         annotations: isolateHistory.of('full'),
       })
     } else {
@@ -117,10 +123,8 @@ export const imageControls = ViewPlugin.fromClass(class {
       this.close()
       trigger.focus({ preventScroll: true })
     } else if (event.target instanceof Node && this.panel.contains(event.target) &&
-      (event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'z') {
+      runScopeHandlers(this.view, event, controlsScope)) {
       event.preventDefault()
-      if (event.shiftKey) redo(this.view)
-      else undo(this.view)
     }
   }
 
@@ -144,12 +148,7 @@ export const imageControls = ViewPlugin.fromClass(class {
     this.panel.hidden = true
   }
 
-  resize = () => {
-    this.pinned = null
-    this.measure()
-  }
-
-  scroll = () => { if (this.active) this.resize() }
+  scroll = () => { if (this.active) this.measure() }
 
   measure = () => {
     const view = this.view
@@ -169,18 +168,24 @@ export const imageControls = ViewPlugin.fromClass(class {
         const top = Math.max(scroll.top, 0)
         const right = Math.min(scroll.left + view.scrollDOM.clientWidth, window.innerWidth)
         const bottom = Math.min(scroll.top + view.scrollDOM.clientHeight, window.innerHeight)
+        // A taller image may grow the gutter without moving the visible editor.
+        const viewport = [
+          left, top, right, bottom, available, editor.left, editor.top,
+          view.scrollDOM.scrollLeft, view.scrollDOM.scrollTop,
+        ]
+        const pinned = viewport.every((value, i) => value === this.viewport[i]) ? this.pinned : null
         const panel = this.panel.getBoundingClientRect()
         const gap = 4
         let x = image.left
         let y = image.top
-        if (this.pinned) {
-          x = editor.left + this.pinned.x
-          y = editor.top + this.pinned.y
+        if (pinned) {
+          x = editor.left + pinned.x
+          y = editor.top + pinned.y
         } else if (image.right + gap + panel.width <= right) x = image.right + gap
         else if (image.left - gap - panel.width >= left) x = image.left - gap - panel.width
         else if (image.top - gap - panel.height >= top) y = image.top - gap - panel.height
         else if (image.bottom + gap + panel.height <= bottom) y = image.bottom + gap
-        return { available, anchor,
+        return { available, anchor, viewport, pinned,
           visible: image.right >= left && image.left <= right && image.bottom >= top && image.top <= bottom,
           x: Math.max(left, Math.min(right - panel.width, x)) - editor.left,
           y: Math.max(top, Math.min(bottom - panel.height, y)) - editor.top,
@@ -191,6 +196,8 @@ export const imageControls = ViewPlugin.fromClass(class {
         view.dom.style.setProperty('--pad-image-width', layout.available + 'px')
         if (!layout.anchor || this.active !== layout.anchor) return
         if (!layout.visible) return this.close()
+        this.viewport = layout.viewport
+        this.pinned = layout.pinned
         this.panel.style.left = layout.x + 'px'
         this.panel.style.top = layout.y + 'px'
         this.refresh()
@@ -216,8 +223,12 @@ export const imageControls = ViewPlugin.fromClass(class {
     this.view.dom.removeEventListener('focusout', this.focusout)
     this.view.dom.ownerDocument.removeEventListener('pointerdown', this.outside, true)
     this.view.dom.ownerDocument.removeEventListener('scroll', this.scroll, true)
-    window.removeEventListener('resize', this.resize)
+    window.removeEventListener('resize', this.measure)
   }
+}, {
+  provide: () => keymap.of(historyKeymap
+    .filter(binding => binding.run === undo || binding.run === redo)
+    .map(binding => ({ ...binding, scope: controlsScope }))),
 })
 
 export const imageControlsTheme = EditorView.baseTheme({

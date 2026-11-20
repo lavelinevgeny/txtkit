@@ -4,6 +4,13 @@ import { EditorView } from '@codemirror/view'
 import { createEditorState } from '../src/tools/text-pad/editorStateFactory'
 
 let view: EditorView | undefined
+function mockRangeLayout() {
+  Object.defineProperties(Range.prototype, {
+    getClientRects: { configurable: true, value: () => [] },
+    getBoundingClientRect: { configurable: true, value: () => new DOMRect() },
+  })
+}
+
 afterEach(() => {
   view?.destroy()
   view = undefined
@@ -80,14 +87,23 @@ it('keeps the image, selection and focused control through resizing, reset and E
 })
 
 it('fits the controls outside a thumbnail at either edge of the visible editor', async () => {
+  let notifyGutterResize!: () => void
+  vi.stubGlobal('ResizeObserver', class {
+    readonly callback: ResizeObserverCallback
+    constructor(callback: ResizeObserverCallback) { this.callback = callback }
+    observe(target: Element) {
+      if (target.matches('.cm-gutters')) notifyGutterResize = () => {
+        this.callback([{ target } as ResizeObserverEntry], this)
+      }
+    }
+    unobserve() {}
+    disconnect() {}
+  })
+  mockRangeLayout()
   const { widget } = preview(true)
   const editor = view!
   const trigger = widget.querySelector('button')!
   const panel = editor.dom.querySelector<HTMLElement>('[role=group]')!
-  Object.defineProperties(Range.prototype, {
-    getClientRects: { configurable: true, value: () => [] },
-    getBoundingClientRect: { configurable: true, value: () => new DOMRect() },
-  })
   const viewport = new DOMRect(10, 50, 300, 200)
   vi.spyOn(editor.dom, 'getBoundingClientRect').mockReturnValue(viewport)
   vi.spyOn(editor.scrollDOM, 'getBoundingClientRect').mockReturnValue(viewport)
@@ -100,11 +116,58 @@ it('fits the controls outside a thumbnail at either edge of the visible editor',
 
   panel.querySelector('button')!.click()
   image.mockReturnValue(new DOMRect(12, 235, 12, 9))
+  notifyGutterResize()
   await new Promise(resolve => requestAnimationFrame(resolve))
   expect(panel.style.top).toBe('1px')
   expect(panel.style.left).toBe('147px')
 
+  editor.scrollDOM.scrollTop = 40
   editor.scrollDOM.dispatchEvent(new Event('scroll'))
   await waitFor(() => expect(panel.style.top).toBe('154px'))
   expect(panel.style.left).toBe('18px')
+})
+
+it.each([[280, 75], [430, 125]])('uses the nearest visibly smaller step at viewport width %i', async (narrowWidth, scale) => {
+  mockRangeLayout()
+  const { img, widget } = preview(true)
+  const editor = view!
+  let width = 1080
+  Object.defineProperty(editor.scrollDOM, 'clientWidth', { get: () => width })
+  Object.defineProperties(img, { naturalWidth: { value: 300 }, naturalHeight: { value: 150 } })
+  img.dispatchEvent(new Event('load'))
+  widget.querySelector('button')!.click()
+  const [minus, reset, plus] = editor.dom.querySelectorAll<HTMLButtonElement>('[role=group] button')
+  await waitFor(() => expect(plus).toHaveAttribute('aria-disabled', 'false'))
+  for (let i = 0; i < 4; i++) plus.click()
+  expect(reset).toHaveTextContent('200%')
+  width = narrowWidth
+  window.dispatchEvent(new Event('resize'))
+  await waitFor(() => expect(parseFloat(editor.dom.style.getPropertyValue('--pad-image-width'))).toBeLessThanOrEqual(width))
+  expect(reset).toHaveTextContent('200%')
+  minus.click()
+  expect(reset).toHaveTextContent(scale + '%')
+  expect(widget.style.getPropertyValue('--pad-image-factor')).toBe(String(scale / 100))
+})
+
+it('runs history shortcuts on a focused control with Latin and Cyrillic layouts', () => {
+  const { widget } = preview(true)
+  widget.querySelector('button')!.click()
+  const [minus, reset] = view!.dom.querySelectorAll<HTMLButtonElement>('[role=group] button')
+  minus.click()
+  minus.click()
+  function shortcut(key: string, keyCode: number, repeat = false) {
+    const event = new KeyboardEvent('keydown', { key, keyCode, ctrlKey: true, repeat, bubbles: true, cancelable: true })
+    minus.dispatchEvent(event)
+    return event.defaultPrevented
+  }
+  expect(shortcut('z', 90)).toBe(true)
+  expect(reset).toHaveTextContent('75%')
+  expect(shortcut('я', 90, true)).toBe(true)
+  expect(reset).toHaveTextContent('100%')
+  expect(shortcut('y', 89)).toBe(true)
+  expect(reset).toHaveTextContent('75%')
+  expect(shortcut('н', 89, true)).toBe(true)
+  expect(reset).toHaveTextContent('50%')
+  expect(shortcut('a', 65)).toBe(false)
+  expect(document.activeElement).toBe(minus)
 })

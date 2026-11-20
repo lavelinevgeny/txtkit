@@ -42,9 +42,12 @@ class Preview extends WidgetType {
   eq(other: Preview) {
     return this.sameSource(other) && this.binding.scale === other.binding.scale
   }
+  private applyScale(dom: HTMLElement) {
+    dom.style.setProperty('--pad-image-factor', String((this.binding.scale ?? 100) / 100))
+  }
   updateDOM(dom: HTMLElement, _view: EditorView, previous: Preview) {
     if (!this.sameSource(previous)) return false
-    dom.style.setProperty('--pad-image-factor', String((this.binding.scale ?? 100) / 100))
+    this.applyScale(dom)
     return true
   }
   toDOM(view: EditorView) {
@@ -54,7 +57,7 @@ class Preview extends WidgetType {
       span.textContent = this.alt
       return span
     }
-    span.style.setProperty('--pad-image-factor', String((this.binding.scale ?? 100) / 100))
+    this.applyScale(span)
     const trigger = document.createElement('button')
     trigger.type = 'button'
     trigger.className = 'cm-pad-image-trigger'

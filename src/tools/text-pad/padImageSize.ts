@@ -20,3 +20,12 @@ export function autoImageWidth(image: HTMLImageElement) {
 export function scaledImageWidth(base: number, available: number, scale: number) {
   return Math.min(available, Math.min(base, available) * scale / 100)
 }
+
+export function previousImageScale(base: number, available: number, scale: number) {
+  let previous = Math.max(imageScaleStep, scale - imageScaleStep)
+  const currentWidth = scaledImageWidth(base, available, scale)
+  while (currentWidth > 0 && previous > imageScaleStep && scaledImageWidth(base, available, previous) >= currentWidth) {
+    previous -= imageScaleStep
+  }
+  return previous
+}
