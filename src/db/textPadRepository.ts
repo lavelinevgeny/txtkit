@@ -24,6 +24,9 @@ function getDB(): Promise<IDBPDatabase> {
           db.createObjectStore('workspace', { keyPath: 'key' })
         }
       },
+    }).catch(error => {
+      dbPromise = null
+      throw error
     })
   }
   return dbPromise
@@ -32,6 +35,12 @@ function getDB(): Promise<IDBPDatabase> {
 export async function getAllDocuments(): Promise<DocumentRecord[]> {
   const db = await getDB()
   return db.getAll('documents')
+}
+
+export async function getDocumentVersion(id: string): Promise<Pick<DocumentRecord, 'contentRevision' | 'updatedAt'> | undefined> {
+  const db = await getDB()
+  const doc = await db.get('documents', id)
+  return doc && { contentRevision: doc.contentRevision, updatedAt: doc.updatedAt }
 }
 
 function isOlderDocumentVersion(
