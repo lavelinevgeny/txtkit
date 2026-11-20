@@ -19,6 +19,17 @@ describe('getTextPadStats', () => {
     })
   })
 
+  it('counts an image as paragraph content and a word separator', () => {
+    expect(getTextPadStats('a\uFFFCb\uFFFC', [{ offset: 1 }])).toMatchObject({
+      chars: 3, words: 2, paragraphs: 1, lines: 1,
+    })
+    expect(getTextPadStats('\uFFFC', [{ offset: 0 }])).toMatchObject({
+      chars: 0, words: 0, paragraphs: 1, lines: 1,
+    })
+    const text = 'a'.repeat(LIVE_DETAILED_STATS_LIMIT_CHARS) + '\uFFFC'
+    expect(getTextPadStats(text, [{ offset: text.length - 1 }]).detailedStatsDisabled).toBe(true)
+  })
+
   it('counts a single line', () => {
     expect(getTextPadStats('hello world')).toEqual({
       chars: 11,
